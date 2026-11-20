@@ -1,0 +1,472 @@
+{
+  "$fixture": {
+    "commit": "fd27c84",
+    "story": "A two-step challenge from the admin console (unmapped), settled at its deadline with step 2 one jar short. Alice (the operator) never joined; Bob and Carol did. Bob collected step 1's reward; Carol has not collected. Its claim window is the 7 days it was placed with.",
+    "actors": {
+      "alice": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "bob": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+      "carol": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+    },
+    "clock": "2026-09-21T13:00:00.000Z"
+  },
+  "room": {
+    "id": "01K5C00000000000000CHA0000@beacon.example",
+    "type": "challenge",
+    "version": 7,
+    "location": {
+      "lat": 47.61,
+      "lng": -122.34
+    },
+    "state": {
+      "contents": [
+        {
+          "unique": "01K30000000000000000000006",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+            "sig": "P60kwjfwUEEnMuhbNFyqKUn3-iuvcqTg73rmOaNxXyUQyAjDZMRjKhbkBFTpMQfsJRXBV9MqLmPo4OhIDiVBCg"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {}
+          },
+          "owner": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs"
+        },
+        {
+          "unique": "01K30000000000000000000008",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz",
+            "sig": "FVGPI-3FcTMRKPgfImwSOXreZX-PfRdSEEPBP4AwCdmrqfWYp-SOUzmD0ybFzmh_fIv62CJrMB56qiv_LQT8DA"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {}
+          },
+          "owner": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+        },
+        {
+          "unique": "01K30000000000000000000010",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+            "sig": "IvGK4RSVkFFdfx-Ke9eLrV0b4awP2YFFxopbK2yVG1lrx57iKKnhAEHQBVCrr0bTmp_OY6RSYZJ4ziOvikHUAg"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {
+              "s1:capsule.finished": 2
+            }
+          },
+          "owner": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs"
+        },
+        {
+          "unique": "01K30000000000000000000013",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz",
+            "sig": "rulaliCa8IijSeUvKJbDRrFohRaufcczBvLWyjetjVdNJhzfBFTYfrbSb1W4NBdhMxUwkU5K6tyx1viGvaEbBg"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {
+              "s2:jar.placed": 2
+            }
+          },
+          "owner": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+        }
+      ],
+      "rewards1": [
+        {
+          "unique": "01M2FWKNG0HH7SAJZNGN37K1FF",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["1"]
+            },
+            "mintedAt": "2026-09-14T12:00:00.000Z",
+            "description": "Step 1 reward"
+          },
+          "state": {
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "name": "Market prize 1"
+          },
+          "owner": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15,
+              "proceduralShared": 5,
+              "semanticShared": 5,
+              "episodicShared": 5
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["1"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "Q54VEg02EZ5NntZi2paFG1hXRTl-xOV3PQANuacHhBrZxMQZm_cezx35GHm3_y7ZnH_uvUwgf4N7mAkaJEhuAA"
+          }
+        },
+        {
+          "unique": "01M2FWKNG0PNZDNN7V4RM5A3TW",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["1"]
+            },
+            "mintedAt": "2026-09-14T12:00:00.000Z",
+            "description": "Step 1 reward"
+          },
+          "state": {
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "name": "Market prize 1"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15,
+              "proceduralShared": 5,
+              "semanticShared": 5,
+              "episodicShared": 5
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["1"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "brJj3TMzs89bY-jzUPkvYllf96PqwIpBuPcEEJzgHHG4VSfk-5fVjSnxazJD_o6NDZpnykUvh5bDmUIuP81gBQ"
+          }
+        }
+      ],
+      "rewards2": [
+        {
+          "unique": "01M2FWKNG0TK2CFKJJH92MZDEW",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["2"]
+            },
+            "mintedAt": "2026-09-14T12:00:00.000Z",
+            "description": "Step 2 reward"
+          },
+          "state": {
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "name": "Market prize 2"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15,
+              "proceduralShared": 5,
+              "semanticShared": 5,
+              "episodicShared": 5
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["2"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "tbM9FNOCxT2wRDas5I0eZRTYzjwzwkaGwlrEoIjhd1UDEcx3k4oaZWY7kYgDJkf_ILRWEpg4Xh7iExxPUUgjBQ"
+          }
+        },
+        {
+          "unique": "01M2FWKNG0FNWX2FHJ2P5FCT1H",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["2"]
+            },
+            "mintedAt": "2026-09-14T12:00:00.000Z",
+            "description": "Step 2 reward"
+          },
+          "state": {
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15
+            },
+            "name": "Market prize 2"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 15,
+              "semantic": 15,
+              "episodic": 15,
+              "proceduralShared": 5,
+              "semanticShared": 5,
+              "episodicShared": 5
+            },
+            "tags": {
+              "source": ["challenge"],
+              "challenge": ["Market loop"],
+              "challengeDate": ["2026-09-21"],
+              "challengeTeam": ["2"],
+              "challengeSteps": ["2"],
+              "challengeStep": ["2"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "YRru4qxpWSmSUZSSAJxl-4DsIb6NcMLssRzRTOBDY28Y1XKb_VMIsQ7qW2BlD_xXxICSpPeTDDJtLI4DmjNNAA"
+          }
+        }
+      ],
+      "phase": "settled",
+      "placedAt": 1789387200,
+      "step1Deficit": 0,
+      "step2Deficit": 1,
+      "unlockAt": 1789992000,
+      "contributors": {
+        "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs": [
+          "01K30000000000000000000006",
+          "01K30000000000000000000010"
+        ],
+        "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz": [
+          "01K30000000000000000000008",
+          "01K30000000000000000000013"
+        ]
+      },
+      "granted": {
+        "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs": {
+          "rewards1": ["01M2FWKNG0HH7SAJZNGN37K1FF"]
+        }
+      },
+      "settledAt": 1789995600
+    },
+    "policy": {
+      "type": "challenge",
+      "ops": {
+        "contribute": {
+          "role": "public",
+          "phase": "active"
+        },
+        "collect": {
+          "role": "contributor"
+        },
+        "react": {
+          "role": "contributor",
+          "max": 300
+        }
+      },
+      "lifecycle": {
+        "phases": ["active", "settled"],
+        "transitions": {
+          "settled": "unlockAt"
+        }
+      },
+      "derived": {
+        "step1Deficit": {
+          "max": [
+            0,
+            {
+              "-": [
+                2,
+                {
+                  "sum": [
+                    {
+                      "var": "contents"
+                    },
+                    "s1:capsule.finished"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "step2Deficit": {
+          "max": [
+            0,
+            {
+              "-": [
+                3,
+                {
+                  "sum": [
+                    {
+                      "var": "contents"
+                    },
+                    "s2:jar.placed"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "unlockAt": {
+          "min": [
+            1789992000,
+            {
+              "+": [
+                {
+                  "var": "placedAt"
+                },
+                {
+                  "*": [
+                    {
+                      "+": [
+                        {
+                          "var": "step1Deficit"
+                        },
+                        {
+                          "var": "step2Deficit"
+                        }
+                      ]
+                    },
+                    1000000000
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "accept": {
+        "class": ["ChallengeProgress"],
+        "capacity": 500
+      },
+      "maxContributors": 2,
+      "grant": [
+        {
+          "op": "collect",
+          "from": "rewards1",
+          "count": 1,
+          "when": {
+            "max": [
+              0,
+              {
+                "-": [
+                  1,
+                  {
+                    "var": "step1Deficit"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "op": "collect",
+          "from": "rewards2",
+          "count": 1,
+          "when": {
+            "max": [
+              0,
+              {
+                "-": [
+                  1,
+                  {
+                    "+": [
+                      {
+                        "var": "step1Deficit"
+                      },
+                      {
+                        "var": "step2Deficit"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "onEmpty": "close",
+      "claimTtl": "7d"
+    },
+    "placedBy": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+    "mintedBy": {
+      "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "sig": "QSfmIaDesI1V82W8pMTKuvxRFGST41Dws5vcCo0nmIF-tuioEndHLNaHpa6iAAz2RkTmYtecVtnSfG4D0DCOAQ"
+    },
+    "name": "Market loop",
+    "live": "https://beacon.example"
+  }
+}

@@ -1,0 +1,13 @@
+-- 0025_mailbox_game (postgres) — the game each message was sent from.
+--
+-- A mailbox body is the sending game's own message format, so a recipient reads only the mail of
+-- the game they read as (`doc/spec/mailbox-and-media.md` §4.1). Every send stamps its envelope's
+-- slug here, and fetch and ack filter on it.
+--
+-- Nullable, and stamped by nobody here: a message sent before this migration carries no game, and
+-- no shipped migration names a game. Such a row is delivered to no game until the operator stamps
+-- it (doc/deploy.md) or it expires on its TTL. The server's boot log counts them.
+--
+-- `COLLATE "C"` like every text column (0023): slugs compare by byte. No index of its own: every
+-- read already narrows on `mailbox_recipient_idx`, and one recipient's box is small.
+ALTER TABLE mailbox ADD COLUMN IF NOT EXISTS game TEXT COLLATE "C";

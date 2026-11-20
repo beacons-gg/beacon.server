@@ -1,0 +1,139 @@
+{
+  "type": "challenge",
+  "ops": {
+    "contribute": {
+      "role": "public",
+      "phase": "active"
+    },
+    "collect": {
+      "role": "contributor"
+    },
+    "react": {
+      "role": "contributor",
+      "max": 300
+    }
+  },
+  "lifecycle": {
+    "phases": ["active", "settled"],
+    "transitions": {
+      "settled": "unlockAt"
+    }
+  },
+  "derived": {
+    "step1Deficit": {
+      "max": [
+        0,
+        {
+          "-": [
+            2,
+            {
+              "sum": [
+                {
+                  "var": "contents"
+                },
+                "s1:capsule.finished"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "step2Deficit": {
+      "max": [
+        0,
+        {
+          "-": [
+            3,
+            {
+              "sum": [
+                {
+                  "var": "contents"
+                },
+                "s2:jar.placed"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "unlockAt": {
+      "min": [
+        1893456000,
+        {
+          "+": [
+            {
+              "var": "placedAt"
+            },
+            {
+              "*": [
+                {
+                  "+": [
+                    {
+                      "var": "step1Deficit"
+                    },
+                    {
+                      "var": "step2Deficit"
+                    }
+                  ]
+                },
+                1000000000
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "accept": {
+    "class": ["ChallengeProgress"],
+    "capacity": 500
+  },
+  "maxContributors": 2,
+  "grant": [
+    {
+      "op": "collect",
+      "from": "rewards1",
+      "count": 1,
+      "when": {
+        "max": [
+          0,
+          {
+            "-": [
+              1,
+              {
+                "var": "step1Deficit"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "collect",
+      "from": "rewards2",
+      "count": 1,
+      "when": {
+        "max": [
+          0,
+          {
+            "-": [
+              1,
+              {
+                "+": [
+                  {
+                    "var": "step1Deficit"
+                  },
+                  {
+                    "var": "step2Deficit"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "onEmpty": "close",
+  "claimTtl": "30d"
+}

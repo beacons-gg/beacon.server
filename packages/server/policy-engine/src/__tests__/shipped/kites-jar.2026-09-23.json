@@ -1,0 +1,18 @@
+{
+  "type": "jar",
+  "ops": {
+    "add": {
+      "role": "public"
+    },
+    "take": {
+      "role": "public"
+    },
+    "list": {
+      "role": "public"
+    }
+  },
+  "onEmpty": "close",
+  "accept": {
+    "capacity": 12
+  }
+}

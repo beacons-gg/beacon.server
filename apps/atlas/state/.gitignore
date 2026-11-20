@@ -1,0 +1,8 @@
+# Acquisition records — what each step consumed, written by the step that read the bytes and adopted
+# by cartographer's stage 0. Operator-local and regenerated, so never committed.
+#
+# It lives here rather than under osm-import/ because it is a pipeline-wide contract, not one job's
+# output format: a shared hand-off should not sit inside the directory of whichever step happens to
+# write it today, and other acquisition steps (NPS, NRHP, GNIS) can write it too.
+*
+!.gitignore

@@ -1,0 +1,279 @@
+# Release — shipping is a deliberate act, not a side effect of merging.
+#
+# Merges to main ship nothing (ci.yml validates each pull request). A release is this workflow, run by hand on main:
+#
+#   gh workflow run release.yml                 # the next patch version (v1.2.4 after v1.2.3)
+#   gh workflow run release.yml -f tag=v1.3.0   # a named version: a minor, a major or a prerelease
+#
+# (or Actions → Release → Run workflow). That is the one control point for "a release goes out": it
+# batches merges, keeps runner minutes off the merge path, and leaves a tagged record of
+# exactly what shipped.
+#
+# What a run does, in order:
+#   1. `plan` — refuses any ref but main, and decides the tag (scripts/next-release-tag.sh): the
+#      one named, or the next patch after the highest release, counted from the tags the remote has.
+#   2. `validate` — the full gate on the commit being released.
+#   3. `images`: build + push every Docker image in the repo (server + the two atlas images) to
+#      GitHub Container Registry as ghcr.io/beacons-gg/<image>, tagged `<release tag>` + `latest` (a
+#      release candidate, a named tag such as v0.3.0-rc.1, gets its own tag only). A deploy box
+#      can `docker pull` instead of building from source (the compose files keep working
+#      unchanged either way). The core packages the builds install come from public npm.
+#   4. `driver` — publishes the five-flow driver, @beaconsgg/flows, to npm when
+#      the registry lacks the version apps/flows/package.json names (a PR raises it; a release
+#      whose driver is already up skips this). The core repository's install check installs it
+#      and runs the five flows against the released server image.
+#   5. `release` — creates the git tag at the released commit and the GitHub Release, with
+#      generated notes. LAST, so a tag exists only for a release whose gate passed, whose three
+#      images all went up and whose driver is published: a failed run leaves nothing to clean up,
+#      and the next run takes the same tag.
+#
+# It used to be the other way round: publishing a GitHub Release by hand triggered this workflow,
+# so the tag existed before anything was validated, and a release cut from the wrong branch had
+# to be deleted. The tag is also what the skew matrix builds as "the server as released"
+# (skew.yml), so it should name something that shipped.
+#
+# The core packages release from beacon.core, the console from beacon.admin and a game from its
+# own repository; the order when a change spans them is beacon.core's doc/release-runbook.md.
+#
+# The shipping job runs in the `release` GitHub ENVIRONMENT — the one home
+# for ship-time configuration (and the place to add protection rules later, e.g.
+# required reviewers, which would pause shipping until approved while validation
+# runs free). The environment is auto-created on first run; configure it under
+# Settings → Environments → release:
+#
+#   The images job pushes with the workflow's own token (`packages: write`), so it needs no
+#   registry secret. The driver job publishes with the NPM_TOKEN repository secret.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          The release tag. Leave empty for the next patch version (v1.2.4 after v1.2.3); name one
+          (v1.3.0, v2.0.0-rc.1) for a minor, a major or a prerelease.
+        required: false
+        default: ""
+
+# One release at a time: the tag is decided at the start and created at the end, so two runs
+# side by side could decide the same one.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  plan:
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+    steps:
+      # Releases ship from main, full stop. A run on a branch fails here before anything else.
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::a release is cut from main, not ${{ github.ref }}"
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      # The remote is asked for the tags: a runner's checkout holds none. `shell: bash` is what
+      # turns on pipefail (the default is `bash -e`), so a failed ls-remote fails the step rather
+      # than handing the script an empty list and a tag that may exist. The input goes in by env,
+      # not inline substitution, since it is user-typed text; the script checks its shape.
+      - id: tag
+        name: Decide the tag
+        shell: bash
+        env:
+          REQUESTED: ${{ inputs.tag }}
+        run: |
+          # sed, not grep, drops the peeled `^{}` lines: grep exits 1 when nothing is left, which
+          # under `pipefail` would fail the first release of a repository with no tags.
+          tag=$(git ls-remote --tags origin | sed -n 's#.*refs/tags/##p' | sed '/\^{}$/d' \
+            | scripts/next-release-tag.sh "$REQUESTED")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # The tag minus its leading `v`, in descriptor spelling (`1.2.3`).
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          # A tag with a suffix (`v0.3.0-rc.1`) is a release candidate.
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then prerelease=true; fi
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "### Releasing $tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "releasing $tag at $GITHUB_SHA"
+
+  validate:
+    needs: plan
+    # The full gate suite on the commit being released — the root `gate` script, the same
+    # list ci.yml runs and the local commit ritual runs. CI ran it on the pull request, not on
+    # main, so this run is what proves the merged tree a release ships.
+    #
+    # The gate needs the same database ci.yml's `validate` gives it: without
+    # BEACON_TEST_DATABASE_URL the server suite fails at its global setup. Change either job's
+    # service and change both.
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: beacon
+          POSTGRES_PASSWORD: beacon
+          POSTGRES_DB: beacon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace # restore-only turbo cache
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      - run: pnpm run gate
+        env:
+          BEACON_TEST_DATABASE_URL: postgres://beacon:beacon@localhost:5432/beacon_test
+
+  images:
+    # Every Docker image the repo builds, pushed to GitHub Container Registry
+    # under the house names (`beacon-atlas-*`, which apps/atlas/docker-compose.yml
+    # pulls when ATLAS_REGISTRY names this registry, and `beacon-server`),
+    # each tagged `<release tag>` + `latest`. The ad-hoc atlas push ritual
+    # (apps/atlas/README.md) still works between releases; a release just
+    # guarantees a versioned, validated snapshot of all three.
+    needs: [plan, validate]
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+      packages: write # push to GitHub Container Registry
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: beacon-server # the deploy artifact (doc/deploy.md)
+            context: .
+            file: Dockerfile
+          - image: beacon-atlas-cartographer # workspace-rooted context (COPYs packages/)
+            context: .
+            file: apps/atlas/cartographer/Dockerfile
+          - image: beacon-atlas-import # the Lua style rides in the image; root context for LICENSE
+            context: .
+            file: apps/atlas/osm-import/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The Dockerfiles mount an npm user config as a build secret. Public npm needs no token, so
+      # the file is empty for all three images.
+      - name: An empty npm config for the build secret
+        run: touch "$RUNNER_TEMP/npmrc"
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/beacons-gg/${{ matrix.image }}
+          # A release candidate goes up under its own tag only, so nothing that pulls `latest`
+          # moves to it before the release it leads to.
+          tags: |
+            type=raw,value=${{ needs.plan.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.plan.outputs.prerelease != 'true' }}
+
+      - name: Build + push ${{ matrix.image }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          secret-files: npmrc=${{ runner.temp }}/npmrc
+          # Bake the release version as the server image's descriptor default (the
+          # Dockerfile's ARG BEACON_VERSION, where the override story is documented).
+          # Server-only: the atlas Dockerfiles declare no such ARG.
+          build-args: ${{ matrix.image == 'beacon-server' && format('BEACON_VERSION={0}', needs.plan.outputs.version) || '' }}
+          # Per-image cache scope: the images share one gha cache backend, and an
+          # unscoped cache-to would have the three matrix legs clobber each other.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  driver:
+    # The five-flow driver as a package. The core repository's install check wants to know whether
+    # a client on a throwaway core build still completes the five flows against the server as
+    # released: the server is the image above, the client is this driver, installed from the
+    # registry with its core dependencies overridden. Its version is its own (apps/flows/README.md:
+    # it speaks for the oldest client in the skew window), raised by a PR; a version the registry
+    # has is skipped, so most releases pass through here in seconds.
+    needs: [plan, validate]
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 15
+    env:
+      REGISTRY: https://registry.npmjs.org/
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @beaconsgg/flows if the registry lacks its version
+        run: |
+          name=$(jq -r .name apps/flows/package.json); version=$(jq -r .version apps/flows/package.json)
+          if npm view "$name@$version" version --registry "$REGISTRY" >/dev/null 2>&1; then
+            echo "$name@$version is on the registry already: nothing to publish"
+            echo "- driver: $name@$version (already published)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          pnpm exec turbo run build --filter="$name"
+          pnpm --filter "$name" publish --access public --no-git-checks
+          echo "published $name@$version"
+          echo "- driver: $name@$version published" >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    # The record, written last: the git tag at the released commit and the GitHub Release. If the
+    # gate, any image or the driver failed, this never runs and no tag exists.
+    needs: [plan, images, driver]
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    permissions:
+      contents: write # the tag and the release
+    steps:
+      - uses: actions/checkout@v7
+
+      # The committed OpenAPI spec, which the gate held to the wire schemas, with this release's
+      # version, attached to the GitHub Release for the docs to render.
+      - name: Tag the commit and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          PRERELEASE: ${{ needs.plan.outputs.prerelease }}
+        run: |
+          jq --arg v "$VERSION" '.info.version = $v' apps/server/openapi.json > openapi.json
+          prerelease=""
+          if [ "$PRERELEASE" = true ]; then prerelease="--prerelease"; fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TAG" --generate-notes $prerelease openapi.json
+          echo "released $TAG: https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"

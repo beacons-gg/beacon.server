@@ -1,0 +1,13 @@
+# Published volumes — the artifact `cartographer publish` writes, mounted at /out.
+#
+# Operator-local and large: a us-west volume measures 142.6 MB of JSON, and the photos are separate bytes
+# again — 11.6 MB for the 182 published by the first bounded crawl, and on the order of 1 GB once the full
+# 8,363-file crawl has run. `media/` is a sibling of the version directories and shared across them, so it
+# outlives any one version. All of it is reproducible from the build database plus the signing key, so
+# there is nothing here worth committing.
+#
+# The directory is tracked (this file only) so the bind mount finds it already owned by the host user.
+# Docker would otherwise create it as root, and the container runs as `node` — see the note in
+# docker-compose.yml.
+*
+!.gitignore

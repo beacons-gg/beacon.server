@@ -1,0 +1,17 @@
+-- 0021_place_proposal_license (postgres) — the licence a contributor granted when they submitted
+-- (`doc/spec/place-proposals.md` §9a; `apps/atlas/doc/spec/beacon-integration.md` §9, the
+-- contribution round-trip).
+--
+-- A contribution may travel: an operator can share approved contributions with the open Atlas
+-- dataset, which republishes them as static files anyone may mirror. So a submission has to say what
+-- terms it was made under, per submission, covering its text and its photos alike. 'CC0-1.0' or
+-- 'CC-BY-4.0' — the wire enum is the vocabulary.
+--
+-- **Nullable, and no default — deliberately.** NULL means "no grant was recorded", which the export
+-- reads as "never leaves this server". A default would silently label somebody's words with terms
+-- they never chose, and that is the one publishing mistake that cannot be undone (a volume's bytes
+-- never change). The column is nullable rather than NOT NULL because SQLite cannot add a NOT NULL
+-- column through ALTER TABLE at all, even to an empty table, and the two dialects must not diverge
+-- in what they permit. The invariant is carried where it is enforceable in both: the wire schema
+-- requires it at submit, and the export predicate requires it again.
+ALTER TABLE place_proposals ADD COLUMN license TEXT;

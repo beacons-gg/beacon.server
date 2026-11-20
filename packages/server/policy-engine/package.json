@@ -1,0 +1,48 @@
+{
+  "name": "@beaconsgg/policy-engine",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "[S] server-only (Node OK): op pipeline, roles, structural checks, lifecycle, contended recompute, Store interface.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "testing": [
+        "./dist/testing.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@beaconsgg/geo": "^1.1.0",
+    "@beaconsgg/identity": "^1.1.0",
+    "@beaconsgg/jsonlogic-profile": "^1.1.0",
+    "@beaconsgg/protocol-types": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "vitest": "catalog:",
+    "@beaconsgg/tsconfig": "^1.1.0",
+    "@beaconsgg/vitest-config": "^1.1.0"
+  }
+}

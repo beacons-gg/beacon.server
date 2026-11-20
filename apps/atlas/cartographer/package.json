@@ -1,0 +1,38 @@
+{
+  "name": "@beaconsgg/cartographer",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Atlas's builder: the offline, operator-side pipeline that turns raw source data (an OSM extract today) into a staging dataset a Beacon server can snapshot from. Stage-per-subcommand, each independently re-runnable. See apps/atlas/doc/spec/cartographer.md.",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && cp src/review-page.html dist/",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1086.0",
+    "@beaconsgg/atlas-volume": "workspace:*",
+    "@beaconsgg/geo": "^1.1.0",
+    "@beaconsgg/identity": "^1.1.0",
+    "@beaconsgg/image-encode": "workspace:*",
+    "@beaconsgg/place-taxonomy": "workspace:*",
+    "@beaconsgg/protocol-types": "^1.1.0",
+    "@beaconsgg/wikimedia": "workspace:*",
+    "maplibre-gl": "^5.24.0",
+    "pg": "catalog:",
+    "ulid": "catalog:",
+    "yazl": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "vitest": "catalog:",
+    "@types/yazl": "catalog:",
+    "@beaconsgg/tsconfig": "^1.1.0",
+    "@beaconsgg/vitest-config": "^1.1.0"
+  }
+}

@@ -1,0 +1,257 @@
+# Skew matrix: a client and a server on DIFFERENT core versions still complete the five flows
+# (place, contribute, claim, publish a profile, live update). Installed apps do not update the day
+# the server does, and an operator's server may lag a new app, so both directions are tried:
+#
+#   client <edge> x server head    an installed app that has not updated, meeting the new server:
+#                                  the five-flow driver over the PUBLISHED SDK and core at each edge
+#                                  of the skew window, against the server built from this commit.
+#                                  The edges are read off the registry (apps/flows/src/edges.ts):
+#                                  the oldest minor and the newest release of the previous line
+#                                  and of the current one.
+#   client head x server <tag>     a new app meeting the server operators already run: this
+#                                  commit's driver, over the SDK this repository's lockfile pins,
+#                                  against this repository's tree at its latest release tag (`v*`),
+#                                  built as it was.
+#
+# Both sides at the head is apps/flows's own suite, run in every gate; this matrix is the rest. The
+# cells run on a pull request that changes the server, the driver, or the core versions installed
+# (the lockfile), and on every run started by hand. Each cell prints one line per flow, `ok` or
+# `FAIL` with what happened, into the job summary, and fails when any flow did.
+#
+# How to read a red cell (beacon.core's doc/release-runbook.md §4): "client <edge> x server head" red
+# means installed apps at that version would break against the new server, so ship the game
+# update first or hold the server; "client head x server <tag>" red means a new app would break
+# against an operator's older server, so hold the game update until the server has upgraded. An
+# empty window fails the `edges` job on purpose: a matrix with no cells would read as "fine".
+# Before this repository's first release there is no tag to build, and after a window restart the
+# latest release may be from before it, so the second direction has no cell and `edges` says so.
+#
+# What it cannot see is a core change that is not published yet: the core repository's install
+# check runs that half, against this server's released image.
+#
+# The required check is the `Skew matrix` job, and only that one: the cells' names change with the
+# window, and a pull request that touches none of the paths above runs no cell. The workflow
+# therefore runs on every ready pull request, the `changes` job reads which files it touches, and
+# `Skew matrix` always reports. It passes when every job it needs passed or was skipped (by the
+# paths, or for Dependabot), and fails when any of them failed or was cancelled. A draft runs
+# nothing, as in ci.yml; its skipped `Skew matrix` blocks nothing, since a draft can't merge.
+#
+# Reads the version list from public npm and installs the published packages, with no token.
+name: Skew matrix
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: skew-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  # Whether the cells run. Not a `paths:` filter on the trigger: a workflow that doesn't start
+  # reports no check at all, and a required check that never reports holds the pull request forever.
+  changes:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    outputs:
+      skew: ${{ steps.paths.outputs.skew }}
+    steps:
+      # The pull request's merge commit and its first parent, the base branch it merges into.
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+
+      - id: paths
+        name: The paths that change either side of a cell
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "skew=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only HEAD^1 HEAD > changed.txt
+          # A core bump (the lockfile) changes what the head's server and driver run over.
+          if grep -E '^(packages/server/|apps/server/|apps/flows/|scripts/skew-cell\.sh$|pnpm-lock\.yaml$|\.github/workflows/skew\.yml$|\.github/actions/setup-workspace/action\.yml$)' changed.txt; then
+            echo "skew=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no change to the server, the driver or the core versions: no cell runs"
+            echo "skew=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  edges:
+    needs: changes
+    # A Dependabot PR's run gets Dependabot's secrets, not the repository's, so the secrets this
+    # job reads are empty there unless they are added there too. Skipped (and `cell` with it)
+    # rather than red: its `uses:` bumps change neither side of a cell.
+    if: needs.changes.outputs.skew == 'true' && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.edges.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the release tags
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      - run: pnpm exec turbo run build --filter=@beaconsgg/flows
+
+      # The SDK stands for the core packages: they are one fixed group, so its versions are theirs.
+      # The server release is the newest `v*` tag the head descends from, passed with the core it
+      # was built on, so a release from before a window restart gets no cell.
+      - id: edges
+        name: The edges of the skew window, and the server release
+        run: |
+          npm view @beaconsgg/client-sdk versions --json --registry https://registry.npmjs.org/ > versions.json
+          echo "published: $(tr -d '\n ' < versions.json)"
+          release=$(git tag --merged HEAD --sort=-creatordate -l 'v*' | head -n 1)
+          server=""
+          if [ -z "$release" ]; then
+            echo "::notice::no server release tag (v*) in this repository yet: no 'client head x server <tag>' cell"
+          else
+            core=$(git show "$release:apps/server/package.json" | jq -r '.dependencies["@beaconsgg/protocol-types"] // ""')
+            server="$release=$core"
+          fi
+          matrix=$(node apps/flows/dist/edges.js $server < versions.json 2> edges.txt) || { cat edges.txt; exit 1; }
+          cat edges.txt
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Skew window"
+            sed 's/^/- /' edges.txt
+            [ -n "$release" ] || echo "- no server release yet: the old-server direction has no cell"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cell:
+    needs: edges
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.edges.outputs.matrix) }}
+    name: >-
+      ${{ matrix.direction == 'old-client'
+          && format('client {0} x server head', matrix.version)
+          || format('client head x server {0}', matrix.version) }}
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+
+    # One server per database, and this job's is fresh, so a released server's migrations are the
+    # newest it has seen.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: beacon
+          POSTGRES_PASSWORD: beacon
+          POSTGRES_DB: beacon_skew
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      EDGE: ${{ matrix.version }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the released server is the tree at its tag
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-workspace
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build the head's server and driver
+        run: pnpm exec turbo run build --filter=@beaconsgg/server-app --filter=@beaconsgg/flows
+
+      # The compiled driver, with the core packages resolved from the registry at the edge instead
+      # of at what the lockfile pins. It may only call what the edge's SDK has: an addition to the
+      # SDK is fine for a consumer, but the driver using one makes this cell fail on the missing
+      # name, which is the reminder that the driver speaks for the oldest client in the window.
+      - name: The driver over the published SDK
+        if: matrix.direction == 'old-client'
+        run: |
+          dir="$RUNNER_TEMP/old-client"
+          mkdir -p "$dir"
+          cp -r apps/flows/dist "$dir/dist"
+          cp .npmrc "$dir/.npmrc"
+          # The driver's own dependencies, with the core packages at the edge (apps/flows/src/oldClient.ts).
+          node apps/flows/dist/oldClient.js "$EDGE" > "$dir/package.json"
+          cat "$dir/package.json"
+          (cd "$dir" && pnpm install --ignore-workspace)
+          for manifest in "$dir"/node_modules/@beaconsgg/*/package.json; do
+            name=$(jq -r .name "$manifest"); v=$(jq -r .version "$manifest")
+            echo "$name $v"
+            [ "$v" = "$EDGE" ] || { echo "::error::$name is $v, not the edge $EDGE"; exit 1; }
+          done
+          echo "SERVER_MAIN=$GITHUB_WORKSPACE/apps/server/dist/main.js" >> "$GITHUB_ENV"
+          echo "DRIVER_MAIN=$dir/dist/main.js" >> "$GITHUB_ENV"
+
+      # The server as it was released: the tree at the tag, with its own lockfile and the core
+      # versions that lockfile pins.
+      - name: The server as released
+        if: matrix.direction == 'old-server'
+        run: |
+          git rev-parse -q --verify "refs/tags/$EDGE" >/dev/null || {
+            echo "::error::no tag $EDGE in this checkout"; exit 1; }
+          dir="$RUNNER_TEMP/old-server"
+          # A self-hosted runner keeps the checkout between jobs but empties $RUNNER_TEMP, so an
+          # earlier job's worktree is still registered there and `add` refuses the path.
+          git worktree prune
+          git worktree add --detach "$dir" "$EDGE"
+          (cd "$dir" && git log --oneline -1 && pnpm install --frozen-lockfile &&
+            pnpm exec turbo run build --filter=@beaconsgg/server-app)
+          echo "SERVER_MAIN=$dir/apps/server/dist/main.js" >> "$GITHUB_ENV"
+          echo "DRIVER_MAIN=$GITHUB_WORKSPACE/apps/flows/dist/main.js" >> "$GITHUB_ENV"
+
+      - name: The five flows across the skew
+        run: |
+          set -o pipefail
+          scripts/skew-cell.sh "$SERVER_MAIN" "$DRIVER_MAIN" 2>&1 | tee cell.txt
+        env:
+          BEACON_DATABASE_URL: postgres://beacon:beacon@localhost:5432/beacon_skew
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ matrix.direction == 'old-client' && format('client {0} x server head', matrix.version) || format('client head x server {0}', matrix.version) }}"
+            echo "${{ matrix.why }}"
+            echo '```'
+            grep -E '^(ok  |FAIL) ' cell.txt || echo "no flow reported: see the log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The required check. `always()` so it reports when a job it needs was skipped or failed; the
+  # draft guard keeps a draft's run empty.
+  result:
+    name: Skew matrix
+    needs: [changes, edges, cell]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "$RESULTS"
+          if [ "$FAILED" = true ]; then
+            echo "::error::a skew matrix job failed or was cancelled"
+            exit 1
+          fi

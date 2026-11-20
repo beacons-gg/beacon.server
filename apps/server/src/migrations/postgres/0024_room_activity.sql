@@ -1,0 +1,11 @@
+-- 0024_room_activity (postgres) — when each room last changed, for the home page's room counts.
+--
+-- `touched_at` is the commit's clock in Unix seconds, set on every write of the room (its creation,
+-- every applied op, and a timer's phase change, which is the room changing too). NULL for a room not
+-- written since this migration: it counts as unchanged until its next write, which is the honest
+-- reading, since nothing recorded when it last changed.
+--
+-- No index, on purpose. The column moves on every write, and an index on it would cost every room
+-- write its in-place update (each would then rewrite every index on the table) to speed a count the
+-- home page takes at most once a minute, over a table `countRooms` already scans that often.
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS touched_at BIGINT;

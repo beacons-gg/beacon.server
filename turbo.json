@@ -1,0 +1,36 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "//": "The presets (@beaconsgg/tsconfig, @beaconsgg/vitest-config) are registry packages here, so a changed compiler flag or coverage floor arrives as a lockfile change, which is in every task's default inputs. The server suite and the five-flow driver's (which boots the server) declare their database variable: turbo 2 runs tasks with a filtered environment, so an undeclared variable is stripped rather than mis-hashed, and declaring it also stops a pre-database cached run replaying as a hit. agentGuidance off: turbo would otherwise write an AGENTS.md at the root on every run from an AI agent, which is not a file of this repo.",
+  "agentGuidance": false,
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"]
+    },
+    "@beaconsgg/server-app#test": {
+      "dependsOn": ["^build"],
+      "env": ["BEACON_TEST_DATABASE_URL"]
+    },
+    "@beaconsgg/server-app#test:coverage": {
+      "dependsOn": ["^build"],
+      "env": ["BEACON_TEST_DATABASE_URL"]
+    },
+    "@beaconsgg/flows#test": {
+      "dependsOn": ["^build"],
+      "env": ["BEACON_TEST_DATABASE_URL"]
+    },
+    "@beaconsgg/flows#test:coverage": {
+      "dependsOn": ["^build"],
+      "env": ["BEACON_TEST_DATABASE_URL"]
+    }
+  }
+}

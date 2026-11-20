@@ -1,0 +1,3 @@
+# Extracts are big and operator-local — never committed.
+*
+!.gitignore

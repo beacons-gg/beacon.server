@@ -1,0 +1,92 @@
+{
+  "$fixture": {
+    "commit": "885c4fb",
+    "story": "A 10-slot jar. Alice added two memories and Bob took the first; one is left.",
+    "actors": {
+      "alice": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "bob": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+      "carol": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+    },
+    "clock": "2026-08-18T12:00:00.000Z"
+  },
+  "room": {
+    "id": "01K2Z00000000000000JAR0A00@beacon.example",
+    "type": "jar",
+    "version": 4,
+    "location": {
+      "lat": 47.61,
+      "lng": -122.34
+    },
+    "state": {
+      "contents": [
+        {
+          "unique": "01M0ABW8G0PNZDNN7V4RM5A3TW",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 1,
+              "semantic": 1,
+              "episodic": 6
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "C9ruICdBMUJZniqIg1m-Agup9YbjckXhSVLNboUfgg-lB8KG3DKmS-clFiWss_gbk_usbL49AVxGlVNk4FLHDQ"
+          },
+          "state": {
+            "levels": {
+              "procedural": 1,
+              "semantic": 1,
+              "episodic": 6
+            }
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "tags": {
+              "source": ["places"]
+            },
+            "levels": {
+              "procedural": 1,
+              "semantic": 1,
+              "episodic": 6,
+              "proceduralShared": 0,
+              "semanticShared": 0,
+              "episodicShared": 2
+            }
+          }
+        }
+      ]
+    },
+    "policy": {
+      "type": "jar",
+      "ops": {
+        "add": {
+          "role": "public"
+        },
+        "take": {
+          "role": "public"
+        },
+        "list": {
+          "role": "public"
+        }
+      },
+      "onEmpty": "close",
+      "accept": {
+        "capacity": 10
+      }
+    },
+    "placedBy": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+    "mintedBy": {
+      "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "sig": "cVS40_vaZSb73jNrwRFjkJFVtuBcelq2oP5PADMnuK2a7blEwVqB_cdoA7nnxJg5zFzOHTUOa1zY0zV-vR4jBw"
+    },
+    "name": "Jar · holds 10",
+    "live": "https://beacon.example"
+  }
+}

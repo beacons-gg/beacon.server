@@ -1,0 +1,47 @@
+# Keep the Docker build context small and reproducible: never ship installed
+# deps, build output, or the client app into the image build.
+
+# Installed deps / pnpm store (the image runs its own frozen install)
+**/node_modules
+.pnpm-store
+
+# Build output (rebuilt inside the image)
+**/dist
+**/build
+**/*.tsbuildinfo
+**/.turbo
+
+# Operator-local raw inputs for Atlas: multi-GB OSM extracts and archive downloads.
+# The cartographer and osm-import images build from the REPO ROOT, so without
+# these the daemon tars ~15 GB into the context on every build. (They arrive as a
+# read-only bind mount at run time — see apps/atlas/docker-compose.yml.)
+apps/atlas/osm-import/pbf
+apps/atlas/osm-import/data
+# Published volumes grow by gigabytes per publish run, and the secrets directory holds API-key
+# files whose names do not match the `**/*.key` pattern below — neither belongs in the tar the
+# daemon receives for a cartographer build, least of all now that those images are pushed.
+apps/atlas/published
+apps/atlas/state
+apps/atlas/secrets
+
+# VCS / CI / editor
+.git
+.github
+.vscode
+.idea
+
+# SQLite files an older checkout may still hold (the server no longer writes them)
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.beacon
+
+# Env / secrets — never bake into an image layer
+.env
+.env.*
+**/*.key
+
+# Docs, tests scaffolding that don't belong in the runtime image
+coverage
+**/*.log
+.DS_Store

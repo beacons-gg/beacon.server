@@ -1,0 +1,36 @@
+{
+  "name": "@beaconsgg/image-encode",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "[S] server-only: the sharp-backed WebP re-encode behind Cartographer's media crawl. The sizes it encodes to live in @beaconsgg/protocol-types, where a browser can reach them. See apps/atlas/doc/spec/volume-format.md \u00a76.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@beaconsgg/protocol-types": "^1.1.0",
+    "sharp": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "vitest": "catalog:",
+    "@beaconsgg/tsconfig": "^1.1.0",
+    "@beaconsgg/vitest-config": "^1.1.0"
+  }
+}

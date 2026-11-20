@@ -1,0 +1,53 @@
+{
+  "name": "@beaconsgg/flows",
+  "version": "0.3.0",
+  "description": "The five flows (place, contribute, claim, profile publish, live update) driven through the published client SDK against a running Beacon server, as a client of any core version would. The server repository's end-to-end suite and the driver of its skew matrix; published so the core repository's canary can run an unpublished core against a released server.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beacons-gg/beacon.server.git",
+    "directory": "apps/flows"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/main.js",
+  "bin": {
+    "beacon-flows": "./dist/main.js",
+    "beacon-skew-edges": "./dist/edges.js",
+    "beacon-old-client": "./dist/oldClient.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@beaconsgg/client-sdk": "^1.1.0",
+    "@beaconsgg/geo": "^1.1.0",
+    "@beaconsgg/identity": "^1.1.0",
+    "@beaconsgg/protocol-types": "^1.1.0",
+    "semver": "^7.8.5",
+    "socket.io-client": "^4.8.3",
+    "ulid": "catalog:"
+  },
+  "devDependencies": {
+    "@beaconsgg/server-app": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/semver": "^7.7.1",
+    "@vitest/coverage-v8": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@beaconsgg/tsconfig": "^1.1.0",
+    "@beaconsgg/vitest-config": "^1.1.0"
+  }
+}

@@ -1,0 +1,11 @@
+-- 0019_place_sources_source_id_idx (postgres) — index `place_sources (source_id)` for the cross-source
+-- identity lookup `placeUniqueForSourceId`.
+--
+-- The existing indexes lead with `source` — the primary key is `(source, source_id)`, and
+-- `place_sources_live_idx` is `(source, gone_at)` — so a `WHERE source_id = ?` with no `source` can use
+-- none of them and scans the table. That query is what stops a second source describing a place the
+-- server already holds from minting a new one, and an Atlas import asks it **once per place**: on a
+-- 225,084-place volume, an unindexed lookup is 225,084 full scans.
+--
+-- Not unique: one `source_id` legitimately appears under several sources — that is the whole point.
+CREATE INDEX IF NOT EXISTS place_sources_source_id_idx ON place_sources (source_id);

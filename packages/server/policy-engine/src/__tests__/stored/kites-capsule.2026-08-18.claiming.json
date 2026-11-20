@@ -1,0 +1,502 @@
+{
+  "$fixture": {
+    "commit": "885c4fb",
+    "story": "A six-spot medium reward capsule (one grant rule, claimTtl 7d). Alice placed it with her own seeded memory, Bob contributed one, it unlocked, and Alice claimed: `claimed` holds Alice and `granted` is the legacy flat shape. Bob has not claimed. Stored before `settledAt` existed.",
+    "actors": {
+      "alice": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "bob": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+      "carol": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+    },
+    "clock": "2026-08-20T12:00:00.000Z"
+  },
+  "room": {
+    "id": "01K2Z00000000000000CAPA000@beacon.example",
+    "type": "capsule",
+    "version": 5,
+    "location": {
+      "lat": 47.61,
+      "lng": -122.34
+    },
+    "state": {
+      "contents": [
+        {
+          "unique": "01M0ABW8G0D2T2AHJBN8JP73EJ",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "tRPP7y1cbzTm0Z-6p8vEJMknD9wMagd0YL7NbcfG9mBNlG-XYV-yO_HLdRArWjvafZO6CYf6kPvvSRl2Xj9MBw"
+          }
+        },
+        {
+          "unique": "01M0ABW8G00068A5P7NTW00W2B",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 5,
+              "semantic": 2,
+              "episodic": 1
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+            "sig": "CImVqhYhJoLPWDI1UT8Up1HYoi02zhaXngeUK3xpSpM5SgYPUaZ0xcQItAXdNBjW_GiqPTqu36sgPxZ0Z1xJBQ"
+          },
+          "state": {
+            "levels": {
+              "procedural": 5,
+              "semantic": 2,
+              "episodic": 1
+            }
+          },
+          "owner": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+          "match": {
+            "class": "MemoryFragment",
+            "tags": {
+              "source": ["places"]
+            },
+            "levels": {
+              "procedural": 5,
+              "semantic": 2,
+              "episodic": 1,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 0
+            }
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "unique": "01M0ABW8G0HXZG52QW8J2TC7X8",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "zMN_WcEDAVVqA7C1Sj8mtbINRmAJmQIRHhXEuYrCnYXUVSeSN4TITAdcWUfW6IsIGlqXThbyqo2pp0C8eXgKBg"
+          }
+        },
+        {
+          "unique": "01M0ABW8G0N83ZAZA8SPTK0VZY",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "BrMlamPilfkvUHRGlaUuzBX6BV8H9eX-JeLOo1iQdEsm4kNDl8cQNSrC81KdeAyrQLztTN9_6CWp5GwxVJLYDg"
+          }
+        },
+        {
+          "unique": "01M0ABW8G0D1KB709399CGC2YG",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "23pNQYu2vJjHG5tLC1iBxP-pNvvdUhb1pkmoGt-KWC-4XctXj9yN-1OPHMH_APCJDFvI2O1h9ifEoD3DvhsZBw"
+          }
+        },
+        {
+          "unique": "01M0ABW8G0YSSMY53KXBNM6ZPQ",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "wYURuLguyuJAgRlMFrTElgcR4yez7pal6brMNbOI1qNO3pu0O41pBWmkSJKWD7OUV9uucIWyjMXBy3KF8CW9AQ"
+          }
+        },
+        {
+          "unique": "01M0ABW8G0RF6HTP6NF7A06E1Y",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "G2cyT_IezTsaoBgCfiiks62h1iFWTTMwf8c-q4E_0eaWrcas7yD8omOiJUL9jnu7KGZ-s7ajEEsjFyexDeD5BA"
+          }
+        },
+        {
+          "unique": "01M0ABW8G096RP12W4WKV0P3PD",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-18T12:00:00.000Z"
+          },
+          "state": {
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3
+            },
+            "name": "Pike Place"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 3,
+              "semantic": 3,
+              "episodic": 3,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "s6NytHjcr67mIrj8NeSlgi1CAuhNDaS7vGcJzg3hWs6n5K3Nv0jFv0dCNLrs5MkN5-qrPVqzx9w5ADFGRAqNCw"
+          }
+        }
+      ],
+      "phase": "unlocked",
+      "placedAt": 1787054400,
+      "contributors": {
+        "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB": ["01M0ABW8G0D2T2AHJBN8JP73EJ"],
+        "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs": ["01M0ABW8G00068A5P7NTW00W2B"]
+      },
+      "lockAt": 1787065188,
+      "unlockAt": 1787097554,
+      "claimed": ["did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB"],
+      "granted": {
+        "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB": ["01M0ABW8G0HXZG52QW8J2TC7X8"]
+      }
+    },
+    "policy": {
+      "type": "capsule",
+      "ops": {
+        "contribute": {
+          "role": "public",
+          "phase": "packing"
+        },
+        "claim": {
+          "role": "contributor",
+          "phase": "unlocked"
+        }
+      },
+      "lifecycle": {
+        "phases": ["packing", "locked", "unlocked"],
+        "transitions": {
+          "locked": "lockAt",
+          "unlocked": "unlockAt"
+        }
+      },
+      "derived": {
+        "lockAt": {
+          "max": [
+            {
+              "+": [
+                {
+                  "var": "placedAt"
+                },
+                2700
+              ]
+            },
+            {
+              "+": [
+                {
+                  "var": "placedAt"
+                },
+                10800,
+                {
+                  "*": [
+                    {
+                      "sum": [
+                        {
+                          "var": "contents"
+                        },
+                        "proceduralShared"
+                      ]
+                    },
+                    -6
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "unlockAt": {
+          "max": [
+            {
+              "+": [
+                {
+                  "var": "lockAt"
+                },
+                8100
+              ]
+            },
+            {
+              "+": [
+                {
+                  "var": "lockAt"
+                },
+                32400,
+                {
+                  "*": [
+                    {
+                      "sum": [
+                        {
+                          "var": "contents"
+                        },
+                        "semanticShared"
+                      ]
+                    },
+                    -17
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "onEmpty": "close",
+      "claimTtl": "7d",
+      "accept": {
+        "capacity": 60
+      },
+      "unlockTransform": [
+        {
+          "set": {
+            "episodic": {
+              "+": [
+                {
+                  "var": ["episodic", 0]
+                },
+                2
+              ]
+            }
+          }
+        }
+      ],
+      "maxContributors": 6,
+      "grant": {
+        "op": "claim",
+        "from": "rewards",
+        "count": 1
+      }
+    },
+    "placedBy": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+    "mintedBy": {
+      "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "sig": "whkpHSZBQsqJ5qKvLaoKMpc1C2QaWwwInL_D7YYUCEVlbDUPGSSUh1kZkJlHhw8hTpmbWhbpPQW7brExSDoPBA"
+    },
+    "name": "Pike Place",
+    "live": "https://beacon.example"
+  }
+}

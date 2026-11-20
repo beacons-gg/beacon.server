@@ -1,0 +1,33 @@
+# Two things are kept current.
+#
+# The workflow actions (checkout, setup-node, pnpm, docker/*: the supply chain of CI itself).
+#
+# The Beacon packages this repository installs from npm: the core packages and the presets. Nothing else under npm: every
+# other range is the catalog's or the manifest's, and is moved on purpose. A new release there
+# arrives as one grouped PR, so the packages Beacon versions together move together, and its CI
+# (and, where there is one, the skew matrix) runs over the new versions before anything merges.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # The workflows, and the composite action they share, which holds most of the action versions.
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # No cooldown. Dependabot holds back a version published in the last few days, which guards
+    # against a freshly published bad release of someone else's package. These are our own, from
+    # our own registry: a new release candidate should arrive here the week it is published, which
+    # is the point of this entry. Its first run filtered every new version out for that reason.
+    cooldown:
+      default-days: 0
+    allow:
+      - dependency-name: "@beaconsgg/*"
+    groups:
+      beacon:
+        patterns: ["@beaconsgg/*"]

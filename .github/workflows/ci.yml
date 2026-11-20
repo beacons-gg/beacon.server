@@ -1,0 +1,174 @@
+# Minutes are spent with care: a draft pull request runs nothing, so work is pushed as a draft, the
+# gate is run locally (`pnpm run gate`), and the request is marked ready once, for one run. A push
+# to main runs nothing either: a merge lands what its pull request's run validated.
+#
+# CI: the whole gate on every pull request marked ready, plus the two jobs that prove the
+# deployable shape: the Docker images build, and the media store's S3 path works against MinIO.
+#
+# This workflow runs everything every time. One tier is small enough not to need scoped runs,
+# so there is nothing a skipped job could hide and no summary job to keep honest; its three jobs
+# are the required checks. The skew matrix is scoped by paths and reports through one summary job
+# (skew.yml).
+#
+# The Beacon core packages (@beaconsgg/*) install from the public npm registry and need no token.
+#
+# Releasing is deliberately NOT here: merges to main ship nothing. Shipping happens
+# when the Release workflow is run on main (release.yml).
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+# A newer push to a ready PR cancels the older run. A ready_for_review event can arrive twice, once
+# still marked draft; a draft run does nothing and must not cancel the real one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+
+jobs:
+  validate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # The gate: package.json > scripts.gate, the same list release.yml runs on the tagged commit.
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 25
+
+    # The server suite runs on Postgres, the only backend: its
+    # global setup fails the run when BEACON_TEST_DATABASE_URL is unset or unreachable. This
+    # service is that database. release.yml starts the same one; change both together.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: beacon
+          POSTGRES_PASSWORD: beacon
+          POSTGRES_DB: beacon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Turbo cache policy: only the push-to-main run SAVES (it's the one every later PR restores
+      # from); see the action's header.
+      - uses: ./.github/actions/setup-workspace
+        with:
+          turbo-cache: ${{ github.event_name == 'pull_request' && 'restore' || 'save' }}
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      # The presets' checks, build + typecheck, every suite with its coverage floor, lint and the
+      # format check. `@beaconsgg/server-app#test:coverage` declares the database variable in
+      # turbo.json's `env`, which is what lets it reach the suite at all.
+      - run: pnpm run gate
+        env:
+          BEACON_TEST_DATABASE_URL: postgres://beacon:beacon@localhost:5432/beacon_test
+
+  docker:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # The two images that build from this checkout stay buildable: the server (the deploy
+    # artifact, doc/deploy.md) and Cartographer. The import image is apt and a Lua file and is
+    # built at release only. Each fetching RUN in the Dockerfiles reads the npm user config (with
+    # the registry token, when the registry needs one) from a BuildKit secret; none of it lands in
+    # a layer.
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: beacon-server
+            file: ./Dockerfile
+          - image: beacon-atlas-cartographer
+            file: ./apps/atlas/cartographer/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # The Dockerfiles mount an npm user config as a build secret. Public npm needs no token, so
+      # the file is empty.
+      - name: An empty npm config for the build secret
+        run: touch "$RUNNER_TEMP/npmrc"
+
+      - name: Build ${{ matrix.image }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: false
+          tags: ${{ matrix.image }}:ci
+          secret-files: npmrc=${{ runner.temp }}/npmrc
+          # Same cache scope as the release push of this image, so a release replays the layers
+          # the last PR/main build already proved.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  s3-integration:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # The media S3 blob backend's real PutObject/GetObject path against MinIO (an S3-compatible
+    # store, standing in for Cloudflare R2 / DigitalOcean Spaces). The unit suite only covers
+    # redirect-URL construction; the network path is env-gated on BEACON_TEST_S3_ENDPOINT and
+    # skipped in `validate` (mailbox-and-media.md §9).
+    runs-on: ${{ fromJSON(vars.BEACON_RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 15
+
+    # This file needs no database, but the server suite's global setup refuses to run without a
+    # reachable one, and it holds for any selection of files rather than guessing which need it.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: beacon
+          POSTGRES_PASSWORD: beacon
+          POSTGRES_DB: beacon_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace # restore-only turbo cache
+        with:
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      # MinIO stopped publishing its images: they left Docker Hub, then quay.io (2026-09-24). Both
+      # come from pgsty's community fork on Docker Hub, which keeps MinIO's RELEASE tags, pinned by
+      # digest as well so a re-tag can't change what this job runs. The same pins are in both compose
+      # files.
+      - name: Start MinIO + create the media bucket
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=beacon -e MINIO_ROOT_PASSWORD=beacon-secret \
+            pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 server /data
+          for _ in $(seq 1 60); do curl -sf http://localhost:9000/minio/health/ready && break; sleep 1; done
+          docker run --rm --network host --entrypoint sh pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd -c \
+            "until mc alias set local http://localhost:9000 beacon beacon-secret; do sleep 1; done; mc mb --ignore-existing local/beacon-media"
+
+      # Build so the test resolves the workspace packages' dist.
+      - run: pnpm run build
+
+      - name: S3 integration test (MinIO)
+        env:
+          BEACON_TEST_DATABASE_URL: postgres://beacon:beacon@localhost:5432/beacon_test
+          BEACON_TEST_S3_ENDPOINT: http://localhost:9000
+          BEACON_TEST_S3_BUCKET: beacon-media
+          BEACON_TEST_S3_ACCESS_KEY_ID: beacon
+          BEACON_TEST_S3_SECRET_ACCESS_KEY: beacon-secret
+        run: pnpm --filter @beaconsgg/server-app exec vitest run src/__tests__/media-blob.integration.test.ts src/__tests__/backup.integration.test.ts

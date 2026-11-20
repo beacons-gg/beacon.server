@@ -1,0 +1,177 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Beacon server: TWO independent servers side by side (dev / multi-server testing).
+#
+# Opt-in override of the single-server `docker-compose.yml`. Brings up two full
+# stacks — each its own Postgres database, port, and BEACON_COVERAGE — so you can
+# exercise cross-server discovery, coverage routing + priority/fallback, and the
+# contested-room live channel from one machine.
+#
+#   Stack A → server-a on :3001, db-a, coverage "9q"
+#   Stack B → server-b on :3002, db-b, coverage "dr"
+#   Both advertise mailbox + media + geocode + places and share one MinIO bucket
+#   (S3-compatible media store; console http://localhost:9001), so content-addressed media is
+#   visible across the pair. The pair is also the places export/import test bed: snapshot on A,
+#   places.export from A, places.import into B — media re-hosts by hash-verified transfer, and
+#   LAN/localhost origins resolve over http via the shared scheme-on-read rule.
+#
+# Topology rule (see doc/deploy.md): ONE server process per database. Each
+# server owns its own in-memory KeyedMutex / geoIndex / timer-wheel and must be the
+# only writer of its DB — hence two separate `db-*` services, never two servers on
+# one database.
+#
+# Run:
+#   docker compose -f docker-compose.dual.yml up --build
+#   curl localhost:3001/health/ready && curl localhost:3002/health/ready
+#   docker compose -f docker-compose.dual.yml down -v      # stop + drop BOTH DBs
+#
+# The client ties them together: add BOTH origins (http://<LAN-IP>:3001 and :3002)
+# to the app's approved-servers list. Set BEACON_HOST / BEACON_PUBLIC_URL to your
+# machine's LAN IP (not localhost) if a phone / dev-client must reach them.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Shared, anchored so both servers stay in sync (build once, one image). ──
+x-server-base:
+  &server-base # A restore ends by exiting so the process comes back with the restored state in memory.
+  restart: unless-stopped
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: beacon-server:local # both servers reuse the single built image
+  healthcheck:
+    # EXEC form + process.env.PORT so ONE healthcheck serves either server's port.
+    # The slim image has no curl/wget, so probe with node against /health/ready.
+    test:
+      [
+        "CMD",
+        "node",
+        "-e",
+        "fetch('http://127.0.0.1:'+process.env.PORT+'/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+      ]
+    interval: 5s
+    timeout: 3s
+    retries: 12
+    start_period: 15s
+
+x-server-env: &server-env
+  # Dev CORS: * allows every origin (empty allows none). In prod set your client origins (CSV),
+  # including the operator console's origin if you use it.
+  BEACON_CORS_ORIGINS: "*"
+  BEACON_WS_DEBUG: "on"
+  # ── Capabilities (doc/spec: mailbox-and-media.md, places.md) — both servers share the one MinIO
+  #    bucket, so content-addressed media is visible across servers (the shared-content design). ──
+  BEACON_MAILBOX: "on"
+  BEACON_MEDIA: "on"
+  BEACON_GEOCODE: "on"
+  BEACON_PLACES: "on"
+  # Admin surface (/admin/status + places snapshots/import/export/edit): set your operator
+  # did:key(s) to test population + the cross-server export/import round trip; empty = the admin
+  # surface 404s as if absent.
+  # BEACON_ADMINS: "did:key:z..."
+  BEACON_DOCS: "on" # OpenAPI + Swagger UI at /docs on both servers
+  BEACON_MEDIA_BACKEND: s3
+  BEACON_MEDIA_S3_ENDPOINT: http://minio:9000
+  BEACON_MEDIA_S3_REGION: us-east-1
+  BEACON_MEDIA_S3_BUCKET: beacon-media
+  BEACON_MEDIA_S3_ACCESS_KEY_ID: beacon
+  BEACON_MEDIA_S3_SECRET_ACCESS_KEY: beacon-secret
+  BEACON_MEDIA_S3_FORCE_PATH_STYLE: "true"
+
+x-db: &db
+  image: postgres:16
+  environment:
+    POSTGRES_USER: beacon
+    POSTGRES_PASSWORD: beacon
+    POSTGRES_DB: beacon
+  healthcheck:
+    # Gate each server's start on its own DB accepting connections.
+    test: ["CMD-SHELL", "pg_isready -U beacon -d beacon"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+
+services:
+  # ── Stack A ─────────────────────────────────────────────────────────────────
+  db-a:
+    <<: *db
+    volumes:
+      - beacon-pgdata-a:/var/lib/postgresql/data
+
+  server-a:
+    <<: *server-base
+    depends_on:
+      db-a:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      <<: *server-env
+      PORT: "3001"
+      # Required (the server exits at boot without it); migrations run on boot.
+      BEACON_DATABASE_URL: postgres://beacon:beacon@db-a:5432/beacon
+      BEACON_HOST: 192.168.10.10:3001 # your LAN IP + THIS server's port
+      BEACON_PUBLIC_URL: http://192.168.10.10:3001
+      BEACON_COVERAGE: "c2" # e.g. Seattle. Tip: use overlapping/empty coverage on both to test contention.
+      BEACON_NAME: Beacon A (c2)
+      BEACON_DESCRIPTION: "Dev stack A — local multi-server test." # optional descriptor blurb
+      # Distinct dev mnemonic → distinct did:key server identity (valid BIP39 test vector).
+      BEACON_MNEMONIC: "legal winner thank year wave sausage worth useful legal winner thank yellow"
+    ports:
+      - "3001:3001"
+
+  # ── Stack B ─────────────────────────────────────────────────────────────────
+  db-b:
+    <<: *db
+    volumes:
+      - beacon-pgdata-b:/var/lib/postgresql/data
+
+  server-b:
+    <<: *server-base
+    depends_on:
+      db-b:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      <<: *server-env
+      PORT: "3002"
+      BEACON_DATABASE_URL: postgres://beacon:beacon@db-b:5432/beacon
+      BEACON_HOST: 192.168.10.10:3002
+      BEACON_PUBLIC_URL: http://192.168.10.10:3002
+      BEACON_COVERAGE: "9q" # e.g. SF Bay Area — the geohash prefixes this server advertises
+      BEACON_NAME: Beacon B (9q)
+      BEACON_DESCRIPTION: "Dev stack B — local multi-server test." # optional descriptor blurb
+      BEACON_MNEMONIC: "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong"
+    ports:
+      - "3002:3002"
+
+  # ── Shared MinIO (S3-compatible object store) for the media blob backend. ──
+  # One store for both servers → content-addressed media is shared across the pair.
+  # Stands in for Cloudflare R2 / DigitalOcean Spaces locally. Console at http://localhost:9001.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 # community fork; same pin as ci.yml
+    command: server /data --console-address ":9002"
+    environment:
+      MINIO_ROOT_USER: beacon
+      MINIO_ROOT_PASSWORD: beacon-secret
+    volumes:
+      - beacon-minio:/data
+    ports:
+      - "9000:9000" # S3 API
+      - "9002:9002" # web console
+
+  # One-shot init: wait for MinIO, create the media bucket, make it publicly readable.
+  createbuckets:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
+    depends_on:
+      - minio
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "until mc alias set local http://minio:9000 beacon beacon-secret; do echo 'waiting for minio...'; sleep 1; done; mc mb --ignore-existing local/beacon-media; mc anonymous set download local/beacon-media; echo 'media bucket ready';",
+      ]
+
+volumes:
+  beacon-pgdata-a:
+  beacon-pgdata-b:
+  beacon-minio:

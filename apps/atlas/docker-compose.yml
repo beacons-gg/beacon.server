@@ -1,0 +1,276 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Atlas — the offline place-dataset toolchain (apps/atlas/doc/spec/).
+#
+# Operator-side tooling, deliberately SEPARATE from the game deploy: game
+# servers never need PostGIS — a beacon server consumes the *published volume*
+# (imported at runtime from the admin console), never this database.
+#
+# Three services, one database:
+#   osm-db        PostGIS — the working database every job here reads and writes
+#   osm-import    one-shot osm2pgsql flex import of a .pbf extract  (profile import)
+#   cartographer  Atlas's builder, one stage per run          (profile cartograph)
+#
+# Run (in this order — every derived source needs the concordance, every source
+# must exist before resolve, and media should see all of their references at once):
+#   docker compose up -d osm-db
+#   PBF_FILE=<name>.osm.pbf docker compose --profile import run --rm -T osm-import
+#   docker compose --profile cartograph run --rm -T cartographer inputs
+#   docker compose --profile cartograph run --rm -T cartographer normalize
+#   docker compose --profile cartograph run --rm -T cartographer concordance
+#   docker compose --profile cartograph run --rm -T cartographer wikipedia
+#   docker compose --profile cartograph run --rm -T cartographer nps
+#   docker compose --profile cartograph run --rm -T cartographer ridb
+#   docker compose --profile cartograph run --rm -T cartographer commons-geo \
+#     --dump /data/commonswiki-latest-geo_tags.sql.gz
+#   docker compose --profile cartograph run --rm -T cartographer kartaview --sweep
+#   docker compose --profile cartograph run --rm -T cartographer contrib --file /data/contrib.json
+#   docker compose --profile cartograph run --rm -T cartographer resolve
+#   docker compose --profile cartograph run --rm -T cartographer merge
+#   docker compose --profile cartograph run --rm -T cartographer media
+#   # then REVIEW the photos and PRUNE what the verdicts withheld, before publishing:
+#   docker compose --profile cartograph run --rm --service-ports \
+#     cartographer review --reviewer <you>          # http://localhost:3200
+#   docker compose --profile cartograph run --rm -T cartographer prune --dry-run
+#   docker compose --profile cartograph run --rm -T cartographer prune
+#   docker compose --profile cartograph run --rm -T cartographer publish \
+#     --volume us-west --version 2026-08
+#   docker compose --profile cartograph run --rm -T cartographer verify --previous 2026-07
+#
+# Shipping it:
+#   docker compose --profile cartograph run --rm -T cartographer pack --version 2026-08
+#   docker compose --profile cartograph run --rm -T cartographer upload --version 2026-08
+#
+# `--service-ports` is what publishes the review console's 3200; a plain `run` publishes nothing.
+# Wait for `media` to finish before reviewing: it commits file rows every 50 files and their place
+# links once per 500-place page, so mid-run a block of photos reads as "(unnamed place)".
+#
+# **Pass `-T`.** Without it `docker compose run` creates the container and never
+# starts it — exit 0, no output, nothing done.
+#
+# ATLAS_INPUT_DIR is the host directory mounted read-only at /data for osm-import
+# (default ./osm-import/pbf); ATLAS_DATA_DIR is cartographer's /data, for the
+# files it opens itself (default ./osm-import/data). Point either at external
+# storage when the archives live there:
+#   ATLAS_INPUT_DIR=/mnt/atlas-input/osm docker compose …
+#
+# Two writable spots, and only two. ./state is where the import records what it
+# consumed, so Cartographer's stage 0 adopts that record instead of being told the
+# file a second time. ./published is where `publish` writes the volume. Everything
+# else is mounted read-only — the input archives are not ours to write to and may
+# not even be mounted when a later stage runs, and ./secrets holds the signing key.
+#
+# `publish` needs a key: ./secrets/publisher.key, a BIP39 phrase, chmod 600. There
+# is no unsigned mode: a volume from an unconfigured publisher is one a beacon
+# server never reads. `cartographer keygen` makes one (README.md, "Create the
+# signing key").
+#
+# Images: built locally by default as beacon-atlas-import and
+# beacon-atlas-cartographer (`docker compose --profile import --profile cartograph
+# build`). Set ATLAS_REGISTRY to put a registry in front of both names, and
+# ATLAS_TAG to pick the tag (default latest); README.md, "Use an image registry".
+#
+# Refresh = re-download the extract and re-run the import (--create replaces
+# the table), then re-run the Cartographer stages. There is no replication.
+#
+# The DB publishes 5433 on all interfaces with hardcoded beacon/beacon
+# credentials — fine on an operator box behind a firewall, which is what this
+# compose set is for. Prefix the mapping with `127.0.0.1:` to restrict it, and
+# change the credentials, if the host is reachable from anywhere you don't trust.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Pinned, not derived from the directory name. Compose defaults the project name to its containing
+# directory, so moving this file (deploy/osm → apps/atlas) silently renamed the project — which means
+# a NEW `osm-db-data` volume and an empty database, while the old one lingers holding the real import.
+# It surfaced as a port collision rather than as data loss, but only by luck. Naming it makes the
+# volume's identity independent of where the file lives.
+name: beacon-atlas
+
+services:
+  osm-db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: beacon
+      POSTGRES_PASSWORD: beacon
+      POSTGRES_DB: beacon_osm
+    ports:
+      - "5433:5432"
+    volumes:
+      - osm-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beacon -d beacon_osm"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-shot import job — only runs when asked for (profile `import`).
+  #
+  # `image:` + `build:` here and on cartographer: a checkout builds (and pushes, with ATLAS_REGISTRY
+  # set), and a host with only this file pulls. The README's "Use an image registry" section is the
+  # one telling. With ATLAS_REGISTRY unset the name has no registry part, so the image stays local.
+  # Set ATLAS_REGISTRY without a trailing slash.
+  osm-import:
+    image: ${ATLAS_REGISTRY:+${ATLAS_REGISTRY}/}beacon-atlas-import:${ATLAS_TAG:-latest}
+    # The repository root is the context, so the image can carry the root LICENSE and COPYRIGHT.
+    build:
+      context: ../..
+      dockerfile: apps/atlas/osm-import/Dockerfile
+    profiles: ["import"]
+    depends_on:
+      osm-db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: beacon
+      # Passed through so the CONTAINER's shell demands it (the `$$` below escapes compose's own
+      # interpolation). Using compose-level `${PBF_FILE:?…}` here instead would make every other
+      # service in this file refuse to start without it.
+      PBF_FILE: ${PBF_FILE:-}
+    volumes:
+      - ${ATLAS_INPUT_DIR:-./osm-import/pbf}:/data:ro
+      - ./state:/state
+    entrypoint: ["/bin/sh", "-c"]
+    # A one-element LIST, not a bare string. Compose shlex-splits a string `command` into argv, which
+    # truncates a shell script at its first `;` — the tail is dropped and `/bin/sh -c ':'` runs the
+    # null command, so the import exits 0 having imported nothing. A single list element reaches `-c`
+    # verbatim. (`$$` escapes compose's own interpolation so the container's shell does the expanding.)
+    command:
+      - |
+        set -e
+        : "$${PBF_FILE:?set PBF_FILE to a file name inside ATLAS_INPUT_DIR}"
+        osm2pgsql --create --output=flex --style=/lua/beacon-places.lua \
+          -H osm-db -P 5432 -U beacon -d beacon_osm "/data/$$PBF_FILE"
+        # Record what was consumed, AFTER a successful import — so the record can never claim
+        # an import that did not happen. This is the only place the answer is known for
+        # certain: the operator named this file to the command that read it, and the file is
+        # provably present right now. Cartographer's stage 0 adopts this rather than being
+        # handed a path a second time, which is what let a build hash extract A while the
+        # database held extract B.
+        #
+        # Plain `sha256sum` in hex, and NO PIPELINE. /bin/sh here is dash: there is no
+        # `pipefail`, and `set -e` does not catch a failure mid-pipeline — so a hash built by
+        # piping through `base64`/`tr` could come out empty and still exit 0, writing a record
+        # that says the import succeeded and the bytes are unknown. Hex also drops a GNU-only
+        # `base64 -w0`, and sha256sum is coreutils rather than a binary that happens to be
+        # present because ca-certificates pulled it in. Cartographer converts hex to the
+        # base64url form the rest of the platform prints; one implementation of that, in TS.
+        #
+        # ONE record per source, named for the source and not the file: `--create` replaces the
+        # table wholesale, so exactly one extract is in there at a time. Keying by file name
+        # left a stale record behind after importing a different extract, and stage 0 would
+        # adopt both — a manifest naming inputs the build was not made from, by another door.
+        sha256=$$(sha256sum "/data/$$PBF_FILE")
+        sha256=$${sha256%% *}
+        bytes=$$(stat -c %s "/data/$$PBF_FILE")
+        mtime=$$(stat -c %Y "/data/$$PBF_FILE")
+        printf '{"source":"osm","artifact":"%s","sha256":"%s","bytes":%s,"mtimeMs":%s000}\n' \
+          "$$PBF_FILE" "$$sha256" "$$bytes" "$$mtime" > /state/osm.input.json
+        echo "recorded /state/osm.input.json  sha256=$$sha256"
+
+  # Atlas's builder — apps/atlas/doc/spec/cartographer.md.
+  #
+  # The profile is `cartograph`, not `build`: `docker compose --profile build` next to
+  # `docker compose build` reads as "build the image", which is the opposite of what it does.
+  #
+  # One stage per invocation, each independently re-runnable — the full list is in the header above,
+  # and `cartographer --help` prints every flag with the reasoning.
+  #
+  # `inputs` is NOT told which extract went in — it adopts what the import recorded. Naming it here
+  # too is the mistake this arrangement exists to prevent.
+  #
+  # SEVEN stages touch the network: `concordance` (Wikidata), `wikipedia` (article extracts), `nps`,
+  # `ridb`, `commons-geo` (only to resolve MATCHED page ids — the discovery is a local PostGIS join over
+  # the geo_tags dump), `kartaview` (swept once into a local catalog) and `media` (Commons metadata plus
+  # image bytes from three hosts). That is why each is a stage of its own — re-deriving identity
+  # (`resolve`) must never mean re-asking Wikidata about 29,000 entities, and re-publishing must never mean
+  # re-fetching 27,689 photos. `wikipedia` replaces the `osm-enrich` job this set used to carry.
+  #
+  # It shares this database rather than standing up its own: stage 1 reads `beacon_places` directly,
+  # and `osm2pgsql --create` drops only the tables its Lua declares, so Cartographer's own tables
+  # survive a re-import.
+  cartographer:
+    image: ${ATLAS_REGISTRY:+${ATLAS_REGISTRY}/}beacon-atlas-cartographer:${ATLAS_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: apps/atlas/cartographer/Dockerfile
+      # Your npm user config for the image's installs (a registry token, when your registry needs
+      # one), as a BuildKit secret; the root .npmrc says what it must hold. The file must exist.
+      secrets:
+        - npmrc
+    profiles: ["cartograph"]
+    depends_on:
+      osm-db:
+        condition: service_healthy
+    # For `cartographer review`, the one long-running subcommand (the identity review console,
+    # `apps/atlas/doc/spec/cartographer.md` §5). `docker compose run` ignores this list unless told otherwise, so:
+    #   docker compose --profile cartograph run --rm --service-ports cartographer review --reviewer <you>
+    ports:
+      - "3200:3200"
+    environment:
+      CARTOGRAPHER_DATABASE_URL: postgres://beacon:beacon@osm-db:5432/beacon_osm
+      # CARTOGRAPHER_STATE_DIR defaults to /state, which is where the mount below lands it.
+      #
+      # Wikimedia's policy requires anonymous clients to identify themselves and give a way to be
+      # contacted, and every network stage refuses to run without it rather than inventing one on
+      # your behalf. Set it to something real before a full run.
+      CARTOGRAPHER_USER_AGENT: ${CARTOGRAPHER_USER_AGENT:-}
+      # Serial pacing between Wikimedia *API* requests, in ms — `concordance`'s ~578 for a us-west extract,
+      # and `media`'s metadata pass (~168 batched calls for 8,363 files).
+      CARTOGRAPHER_INTERVAL_MS: ${CARTOGRAPHER_INTERVAL_MS:-200}
+      # Pacing for `media`'s image BYTE fetches, which go to upload.wikimedia.org — a budget of its own
+      # because that host throttles separately from the API host, and one shared gate would make the slower
+      # of the two bind on both for no benefit. This is the throttle that cost a snapshot 97% of its images.
+      CARTOGRAPHER_BYTES_INTERVAL_MS: ${CARTOGRAPHER_BYTES_INTERVAL_MS:-200}
+      # Largest source image `media` will pull before re-encoding. Above the server's own 10 MiB cap on
+      # purpose: this side fetches the *original* whenever it is no wider than the published `full` size, and
+      # Commons originals in this dataset reach 8.7 MB.
+      CARTOGRAPHER_MEDIA_MAX_BYTES: ${CARTOGRAPHER_MEDIA_MAX_BYTES:-12582912}
+      # api.data.gov key for the `nps` stage — free and instant via
+      # https://www.nps.gov/subjects/developer/get-started.htm (1,000 req/hour; the whole unit corpus
+      # is ONE request). DEMO_KEY works for a smoke run at 30/hour. Keep the real key out of this file.
+      CARTOGRAPHER_NPS_API_KEY: ${CARTOGRAPHER_NPS_API_KEY:-}
+      CARTOGRAPHER_RIDB_API_KEY: ${CARTOGRAPHER_RIDB_API_KEY:-}
+      # `upload` — push a published version to S3-compatible storage (R2: endpoint is
+      # https://<account-id>.r2.cloudflarestorage.com, region stays auto). The key pair may WRITE
+      # the bucket; keep the values in the secrets directory and export them, never in this file.
+      # Reads stay public and keyless — the importer verifies bytes against the signed manifest.
+      CARTOGRAPHER_S3_BUCKET: ${CARTOGRAPHER_S3_BUCKET:-}
+      CARTOGRAPHER_S3_PREFIX: ${CARTOGRAPHER_S3_PREFIX:-}
+      CARTOGRAPHER_S3_ENDPOINT: ${CARTOGRAPHER_S3_ENDPOINT:-}
+      CARTOGRAPHER_S3_REGION: ${CARTOGRAPHER_S3_REGION:-}
+      CARTOGRAPHER_S3_ACCESS_KEY_ID: ${CARTOGRAPHER_S3_ACCESS_KEY_ID:-}
+      CARTOGRAPHER_S3_SECRET_ACCESS_KEY: ${CARTOGRAPHER_S3_SECRET_ACCESS_KEY:-}
+      CARTOGRAPHER_S3_FORCE_PATH_STYLE: ${CARTOGRAPHER_S3_FORCE_PATH_STYLE:-}
+      # CARTOGRAPHER_OUT_DIR defaults to /out, which is where the mount below lands it.
+      #
+      # The volume signing key: a file holding a BIP39 phrase, `chmod 600`. `publish` refuses to run
+      # without it and there is no unsigned mode — a volume from an unconfigured publisher is one a
+      # beacon server never reads, so producing one would only make a file that looks publishable.
+      #
+      # It is long-lived in a way nothing else here is: a server pins this key's `did:key` at its first
+      # import of the volume, so replacing it means every consumer must unpin before it will accept a
+      # new version. Back it up somewhere that is not this directory.
+      CARTOGRAPHER_KEY_FILE: ${CARTOGRAPHER_KEY_FILE:-/secrets/publisher.key}
+    volumes:
+      # The artifacts Cartographer opens ITSELF: the Commons geo_tags dump and a contribution file.
+      # Not the OSM extract: that is `osm-import`'s to read, and stage 0 learns about it from the
+      # record below. So this points at `data/`, not `pbf/`, which is where `--input contrib=/data/…`
+      # and `commons-geo --dump /data/…` resolve.
+      - ${ATLAS_DATA_DIR:-./osm-import/data}:/data:ro
+      # Where the acquisition steps record what they consumed — stage 0 adopts these.
+      - ./state:/state:ro
+      # Where `publish` writes the volume AND where `media` writes photo bytes (`<out>/media/<shard>/`,
+      # a sibling of the version directories so one photo is shared by every version that references it).
+      # The only writable mount cartographer has. The container
+      # runs as `node`, so the host directory has to be writable by that uid — the same mismatch
+      # `inputs.ts` already documents for `./state`, which the import writes as root. If publish fails
+      # with EACCES, that is this and not the database.
+      - ${ATLAS_OUT_DIR:-./published}:/out
+      # The signing key, read-only. Kept out of `environment:` deliberately: an env var is visible to
+      # `docker inspect` and to anything that dumps the environment of a running container.
+      - ${ATLAS_SECRETS_DIR:-./secrets}:/secrets:ro
+
+volumes:
+  osm-db-data:
+
+secrets:
+  npmrc:
+    file: ${BEACON_NPMRC:-${HOME}/.npmrc}

@@ -1,0 +1,36 @@
+{
+  "name": "@beaconsgg/server-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "[S] server-only: reusable server runtime \u2014 the lifecycle timer-wheel scheduler, the per-key mutex (per-room serialization), and the scout relay.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@beaconsgg/geo": "^1.1.0",
+    "@beaconsgg/protocol-types": "^1.1.0",
+    "@beaconsgg/scout-interp": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "vitest": "catalog:",
+    "@beaconsgg/tsconfig": "^1.1.0",
+    "@beaconsgg/vitest-config": "^1.1.0"
+  }
+}

@@ -1,0 +1,4 @@
+# Non-OSM raw inputs (GNIS names, NRHP pulls, …) — operator-local, never committed.
+# The durable home for archives is external storage; this is a working copy.
+*
+!.gitignore

@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Test / coverage
+coverage/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Atlas: the volume signing key and API key files. apps/atlas/secrets/.gitignore ignores them too;
+# this rule keeps them ignored if that file is ever removed.
+apps/atlas/secrets/*
+!apps/atlas/secrets/.gitignore

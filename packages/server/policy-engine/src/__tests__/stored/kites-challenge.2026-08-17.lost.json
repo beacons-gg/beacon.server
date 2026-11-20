@@ -1,0 +1,278 @@
+{
+  "$fixture": {
+    "commit": "7c2db87",
+    "story": "A one-step stage-3 challenge that ran out of time one capsule short. It sits in `ended`, which is not its last phase: its `unlockAt` is the deficit times a billion seconds past the deadline.",
+    "actors": {
+      "alice": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "bob": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+      "carol": "did:key:z6MkvfCbnwoJuz8eWe6voqUXozyuuEw8YxpmDHwXyCu5mPcz"
+    },
+    "clock": "2026-08-24T13:00:00.000Z"
+  },
+  "room": {
+    "id": "01K2S00000000000000CHAL000@beacon.example",
+    "type": "challenge",
+    "version": 5,
+    "location": {
+      "lat": 47.61,
+      "lng": -122.34
+    },
+    "state": {
+      "contents": [
+        {
+          "unique": "01K30000000000000000000010",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "Uk5lCv8khqQHkwkFE8IHprALXE2uCwKB6HiIQHCIeRI3pCeFZ9PwiI8AfKbHB5Z3783eF5UXbCjTKB4IQi8zCw"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {}
+          },
+          "owner": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB"
+        },
+        {
+          "unique": "01K30000000000000000000012",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs",
+            "sig": "XZ9_R3eowpCercnEKbct5FyC3IbAF6QMybNMvxcLYVcJ7reZA_jDKFL-V1GyN9mouQ6G8BJ4xGtgdb5QrzrWBQ"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {}
+          },
+          "owner": "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs"
+        },
+        {
+          "unique": "01K30000000000000000000014",
+          "birth": {
+            "class": "ChallengeProgress"
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "vV_ElAW4v8371d7f0HrkU5i5Bv5NzsVvmaVCksKjBSKFHgqjPMn9eD2T3jDwNjdJGJbgUiHji80LfvbsgH6lAg"
+          },
+          "match": {
+            "class": "ChallengeProgress",
+            "levels": {
+              "capsule.finished": 1
+            }
+          },
+          "owner": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB"
+        }
+      ],
+      "rewards": [
+        {
+          "unique": "01M07SFHG0RF6HTP6NF7A06E1Y",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-17T12:00:00.000Z",
+            "description": "From the ferry"
+          },
+          "state": {
+            "levels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5
+            },
+            "name": "Rainier at dusk"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "1Llg5rDGz6ChSPyKIKEY_3HA_JdiId-Hs0BfI6tUTCen3WpVoY0r0K1XahHO07m7jqJ8q16jwNr6imc0SKqACg"
+          }
+        },
+        {
+          "unique": "01M07SFHG096RP12W4WKV0P3PD",
+          "birth": {
+            "class": "MemoryFragment",
+            "baseLevels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5
+            },
+            "tags": {
+              "source": ["places"]
+            },
+            "foundAt": "c23nb54sr",
+            "mintedAt": "2026-08-17T12:00:00.000Z",
+            "description": "From the ferry"
+          },
+          "state": {
+            "levels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5
+            },
+            "name": "Rainier at dusk"
+          },
+          "owner": null,
+          "match": {
+            "class": "MemoryFragment",
+            "levels": {
+              "procedural": 5,
+              "semantic": 5,
+              "episodic": 5,
+              "proceduralShared": 1,
+              "semanticShared": 1,
+              "episodicShared": 1
+            },
+            "tags": {
+              "source": ["places"]
+            }
+          },
+          "mintedBy": {
+            "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+            "sig": "hYghCo-isrxDklsMhX-JSyWSioluMqtmz77uu7XXIJ4Ic2Hkk3p9xKddLOm5mZVEZbP0tE-lcuwhv_5nS3GLAA"
+          }
+        }
+      ],
+      "phase": "ended",
+      "placedAt": 1786968000,
+      "deadlineAt": 1787572800,
+      "unlockAt": 2787572800,
+      "contributors": {
+        "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB": [
+          "01K30000000000000000000010",
+          "01K30000000000000000000014"
+        ],
+        "did:key:z6MksqsPdfsFZgiFLTk1PpJ8CkejVXSMTHhSfDesFVLfCMDs": ["01K30000000000000000000012"]
+      }
+    },
+    "policy": {
+      "type": "challenge",
+      "ops": {
+        "contribute": {
+          "role": "public",
+          "phase": "active"
+        },
+        "claim": {
+          "role": "contributor",
+          "phase": "won"
+        }
+      },
+      "lifecycle": {
+        "phases": ["active", "ended", "won"],
+        "transitions": {
+          "ended": "deadlineAt",
+          "won": "unlockAt"
+        }
+      },
+      "derived": {
+        "deadlineAt": {
+          "min": [
+            1787572800,
+            {
+              "+": [
+                {
+                  "var": "placedAt"
+                },
+                {
+                  "*": [
+                    {
+                      "max": [
+                        0,
+                        {
+                          "-": [
+                            2,
+                            {
+                              "sum": [
+                                {
+                                  "var": "contents"
+                                },
+                                "capsule.finished"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    1000000000
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "unlockAt": {
+          "+": [
+            {
+              "var": "deadlineAt"
+            },
+            {
+              "*": [
+                {
+                  "max": [
+                    0,
+                    {
+                      "-": [
+                        2,
+                        {
+                          "sum": [
+                            {
+                              "var": "contents"
+                            },
+                            "capsule.finished"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                1000000000
+              ]
+            }
+          ]
+        }
+      },
+      "accept": {
+        "class": ["ChallengeProgress"]
+      },
+      "maxContributors": 2,
+      "grant": {
+        "op": "claim",
+        "from": "rewards",
+        "count": 1
+      },
+      "onEmpty": "close",
+      "claimTtl": "7d"
+    },
+    "placedBy": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+    "mintedBy": {
+      "id": "did:key:z6Mksk6pFzcZUxnaeXsuCv4k46FVUVFnhgYtFaFopTFJVBuB",
+      "sig": "PHOxS-BhTIVbZj8LqebsmsOBHjCe4k4tOwYoftyjnx4orJ19DiMWvEPkJB672P5JRHaDVsvT-xh5ilTTExfpBQ"
+    },
+    "name": "Market loop",
+    "live": "https://beacon.example"
+  }
+}

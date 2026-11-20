@@ -1,0 +1,120 @@
+{
+  "type": "capsule",
+  "ops": {
+    "contribute": {
+      "role": "public",
+      "phase": "packing"
+    },
+    "claim": {
+      "role": "contributor",
+      "phase": "unlocked"
+    },
+    "react": {
+      "role": "contributor",
+      "max": 300
+    }
+  },
+  "lifecycle": {
+    "phases": ["packing", "locked", "unlocked"],
+    "transitions": {
+      "locked": "lockAt",
+      "unlocked": "unlockAt"
+    }
+  },
+  "derived": {
+    "lockAt": {
+      "max": [
+        {
+          "+": [
+            {
+              "var": "placedAt"
+            },
+            2700
+          ]
+        },
+        {
+          "+": [
+            {
+              "var": "placedAt"
+            },
+            10800,
+            {
+              "*": [
+                {
+                  "sum": [
+                    {
+                      "var": "contents"
+                    },
+                    "proceduralShared"
+                  ]
+                },
+                -11
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "unlockAt": {
+      "max": [
+        {
+          "+": [
+            {
+              "var": "lockAt"
+            },
+            8100
+          ]
+        },
+        {
+          "+": [
+            {
+              "var": "lockAt"
+            },
+            32400,
+            {
+              "*": [
+                {
+                  "sum": [
+                    {
+                      "var": "contents"
+                    },
+                    "semanticShared"
+                  ]
+                },
+                -33
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "onEmpty": "close",
+  "claimTtl": "30d",
+  "accept": {
+    "tags": {
+      "color": []
+    },
+    "capacity": 30
+  },
+  "unlockTransform": [
+    {
+      "set": {
+        "episodic": {
+          "+": [
+            {
+              "var": ["episodic", 0]
+            },
+            2
+          ]
+        }
+      }
+    }
+  ],
+  "maxContributors": 3,
+  "grant": {
+    "op": "claim",
+    "from": "rewards",
+    "count": 1
+  }
+}

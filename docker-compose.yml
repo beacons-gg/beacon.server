@@ -1,0 +1,206 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Beacon server: the deployment shape (doc/deploy.md).
+#
+# One server process per PostgreSQL database (doc/deploy.md, "Topology"). The single server owns the
+# in-memory KeyedMutex / geoIndex / timer-wheel, so it must be the ONLY writer of
+# its DB — do NOT scale `server` to replicas > 1 against one `db` (two mutexes
+# would let ops interleave and break no-double-spend). Sharding and replicas aren't built.
+#
+# Run:
+#   docker compose up --build        # build image, start Postgres + server
+#   curl localhost:3001/health/ready # -> {"status":"ready"} once migrations ran
+#   docker compose down              # stop; add -v to also drop the DB volume
+#   pnpm test:db                     # only the server test suite's Postgres (`db-test` below)
+#
+# Env vars (see doc/deploy.md for the full reference):
+#   BEACON_DATABASE_URL  Postgres DSN — required; without it the server exits at boot.
+#   BEACON_HOST          @host in minted `unique@host` room ids.
+#   BEACON_PUBLIC_URL    origin clients use for REST + the live channel.
+#   BEACON_COVERAGE      geohash prefixes advertised in the descriptor (CSV).
+#   BEACON_VERSION       baked into the image at build time (Dockerfile ARG); in the descriptor.
+#   BEACON_ACCESS_LEVEL  open | request | private (default open): who may write.
+#   BEACON_DESCRIPTION / BEACON_CONTACT  optional operator blurb / contact in the descriptor.
+#   BEACON_CORS_ORIGINS  allowed REST + WS origins (CSV; * = any, empty = none).
+#   Signing key:         BEACON_MNEMONIC (env, dev) or BEACON_KEY_FILE (file,
+#                        prod) — see doc/deploy.md "Signing-key management".
+#   BEACON_MAILBOX       "on" enables the mailbox capability (per-recipient notifications).
+#   BEACON_MEDIA         "on" enables media; with BEACON_MEDIA_BACKEND=s3 the BEACON_MEDIA_S3_*
+#                        vars point at the bundled MinIO (S3-compatible) service below. In prod
+#                        set these to Cloudflare R2 / DigitalOcean Spaces (doc/spec/mailbox-and-media.md §5.4).
+#   BEACON_GEOCODE       "on" enables the cached reverse-geocode proxy (GET /geocode).
+#   BEACON_PLACES        "on" enables the owned place dataset (doc/spec/places.md): public
+#                        reads serve the server's own store; population/curation is the signed,
+#                        BEACON_ADMINS-allowlisted admin surface (Atlas import, edit, export/import).
+#   BEACON_ADMINS        operator did:key allowlist for the signed admin surface (doc/spec/admin-api.md):
+#                        /admin/status + the places admin routes. Empty = no admin surface (404s).
+#   BEACON_DOCS          "on" serves the OpenAPI spec + Swagger UI at /docs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: beacon
+      POSTGRES_PASSWORD: beacon
+      POSTGRES_DB: beacon
+    volumes:
+      # Named volume = durable state across `docker compose restart`/`up` cycles.
+      - beacon-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Gate the server's start on the DB actually accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U beacon -d beacon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Not published to the host by default — the server reaches it over the
+    # compose network. Uncomment to inspect from the host:
+    ports:
+      - "5432:5432"
+
+  # ── db-test: a throwaway Postgres for the server test suite (`pnpm test:db`). ──
+  # Behind the `test` profile, so `docker compose up` never starts it. The data dir is a tmpfs:
+  # every start is an empty database and a stop throws it away. Loopback only, port 55432 so it sits
+  # beside `db` on 5432; set BEACON_TEST_DB_PORT to give a second checkout its own, because two suite
+  # runs sharing one database truncate each other's rows mid-test (apps/server/README.md, Commands).
+  db-test:
+    image: postgres:16
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: beacon
+      POSTGRES_PASSWORD: beacon
+      POSTGRES_DB: beacon_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      # Over TCP on purpose: during first-boot init the image runs a socket-only server and then
+      # restarts, so a socket probe can pass before the port the suite connects to is listening.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U beacon -d beacon_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    ports:
+      - "127.0.0.1:${BEACON_TEST_DB_PORT:-55432}:5432"
+
+  server:
+    # A restore ends by exiting so the process comes back with the restored state in memory.
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Your npm user config for the image's installs (the registry token, when your registry
+      # needs one), as a BuildKit secret; see .npmrc.
+      secrets:
+        - npmrc
+    # Exactly one server process per database. Never set replicas > 1 here.
+    depends_on:
+      db:
+        condition: service_healthy
+      # Wait for the media bucket to be created before the server is "up".
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      PORT: "3001"
+      # Required (the server exits at boot without it); migrations run on boot.
+      BEACON_DATABASE_URL: postgres://beacon:beacon@db:5432/beacon
+      # The server's address as players reach it. localhost works on this machine; to test from a
+      # phone, export BEACON_HOST and BEACON_PUBLIC_URL with this machine's LAN address first.
+      BEACON_HOST: ${BEACON_HOST:-localhost:3001}
+      BEACON_PUBLIC_URL: ${BEACON_PUBLIC_URL:-http://localhost:3001}
+      # Advertise-all coverage for local bring-up; set real geohash prefixes in prod.
+      BEACON_COVERAGE: "c2,c0"
+      BEACON_NAME: Beacon Compose Server
+      # Descriptor metadata. Version is baked into the image at build time (Dockerfile
+      # `ARG BEACON_VERSION`); the rest are runtime knobs (all default sensibly).
+      BEACON_ACCESS_LEVEL: open # open | request | private
+      # BEACON_DESCRIPTION: "Your server's public blurb."
+      # BEACON_CONTACT: "admin@example.com"
+      # Dev CORS: * allows every origin (empty allows none). In prod set your client origins (CSV),
+      # including the operator console's origin (e.g. http://localhost:3100) if you use it.
+      BEACON_CORS_ORIGINS: "*"
+      # Signing key: a fixed dev mnemonic keeps the server did:key stable across
+      # restarts here. PROD: mount a chmod-600 key file and set BEACON_KEY_FILE instead
+      # (see doc/deploy.md) — never ship a real mnemonic in compose.
+      BEACON_MNEMONIC: "test test test test test test test test test test test junk"
+      BEACON_WS_DEBUG: "on"
+      # ── Capabilities (doc/spec: mailbox-and-media.md, location-lookups.md, places.md) ──
+      BEACON_MAILBOX: "on"
+      BEACON_MEDIA: "on"
+      BEACON_GEOCODE: "on"
+      BEACON_PLACES: "on"
+      # Places arrive from three inputs only (apps/atlas/doc/spec/beacon-integration.md §6):
+      # Atlas volumes are imported at runtime from the admin console, by URL or uploaded archive with
+      # no env and no redeploy (a mounted path needs BEACON_ATLAS_VOLUMES_DIR). The publisher pin is
+      # durable state. See apps/atlas/README.md.
+      BEACON_PLACES_PROPOSALS: "on"
+      # Admin surface: set your operator account did:key(s) to unlock the signed admin routes
+      # (/admin/status + places snapshot/import/export/edit); empty = reads work, the admin
+      # surface 404s as if absent (safe default).
+      BEACON_ADMINS: "did:key:z6MkqCKW43E17wcw9EbVjfXCHUvHvXkdoV1rYHwjmbUvnit1"
+      # Fair use for snapshot runs against the public Overpass/Nominatim: set a real contact.
+      # BEACON_CONTACT: "admin@example.com"
+      BEACON_DOCS: "on" # OpenAPI + Swagger UI at /docs (dev convenience; consider off in prod)
+      BEACON_DOCS_PATH: "docs"
+      # Media bytes → the bundled MinIO (S3-compatible). MinIO needs path-style addressing.
+      # Prod: swap the endpoint/creds/bucket for Cloudflare R2 / DigitalOcean Spaces, and set
+      # BEACON_MEDIA_CDN_URL so fetches redirect to the public CDN instead of streaming.
+      BEACON_MEDIA_BACKEND: s3
+      BEACON_MEDIA_S3_ENDPOINT: http://minio:9000
+      BEACON_MEDIA_S3_REGION: us-east-1
+      BEACON_MEDIA_S3_BUCKET: beacon-media
+      BEACON_MEDIA_S3_ACCESS_KEY_ID: beacon
+      BEACON_MEDIA_S3_SECRET_ACCESS_KEY: beacon-secret
+      BEACON_MEDIA_S3_FORCE_PATH_STYLE: "true"
+    ports:
+      - "3001:3001"
+    healthcheck:
+      # Readiness = the durable store answers (Postgres reachable + migrated). The
+      # slim image has no curl/wget, so probe with node against /health/ready.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  # ── MinIO: an S3-compatible object store for the media blob backend (dev/CI). ──
+  # Stands in for Cloudflare R2 / DigitalOcean Spaces locally, so the S3 upload/fetch
+  # path is exercisable without cloud credentials. Console at http://localhost:9002.
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372 # community fork; same pin as ci.yml
+    command: server /data --console-address ":9002"
+    environment:
+      MINIO_ROOT_USER: beacon
+      MINIO_ROOT_PASSWORD: beacon-secret
+    volumes:
+      - beacon-minio:/data
+    ports:
+      - "9000:9000" # S3 API
+      - "9002:9002" # web console
+
+  # One-shot init: wait for MinIO, create the media bucket, make it publicly readable
+  # (mirrors an R2/DO public bucket, so BEACON_MEDIA_CDN_URL redirect serving also works).
+  createbuckets:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z@sha256:cfc83108c3abb371f8fb84d99c1fdc88f8c237e022409b0081fb7c0a3be634dd
+    depends_on:
+      - minio
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "until mc alias set local http://minio:9000 beacon beacon-secret; do echo 'waiting for minio...'; sleep 1; done; mc mb --ignore-existing local/beacon-media; mc anonymous set download local/beacon-media; echo 'media bucket ready';",
+      ]
+
+volumes:
+  beacon-pgdata:
+  beacon-minio:
+
+# The npm user config the image builds mount as a build secret (never baked into a layer). Public
+# npm needs no token in it. Point BEACON_NPMRC at another file to use one.
+secrets:
+  npmrc:
+    file: ${BEACON_NPMRC:-${HOME}/.npmrc}

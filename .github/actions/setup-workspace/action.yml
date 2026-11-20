@@ -1,0 +1,74 @@
+# The one home for "stand up the workspace on a runner": pnpm (version from
+# package.json > packageManager), node (version from .nvmrc, pnpm store cached),
+# the registry login, a frozen install, and the turbo task cache. This repository's own copy: each
+# Beacon repository keeps its own setup steps.
+#
+# The turbo cache has one policy, held here so it can't drift per-job:
+#   restore (default) — read the newest cache, never upload. PR-branch saves are
+#     scoped to that branch (sibling PRs can't restore them), so PR uploads are
+#     pure churn against the repo's 10GB cache quota — and the likely LRU victim
+#     is the docker job's buildx layer cache. Release jobs also restore-only:
+#     they run main commits whose exact-sha entry CI already saved.
+#   save — restore, prune entries a couple weeks stale (turbo never GCs its own
+#     cache dir), and upload after the job. Used by exactly one job: CI validate
+#     on a push to main, the run every later PR restores from.
+#
+# Checkout stays outside — fetch-depth varies by caller.
+name: Setup workspace
+description: pnpm + node + frozen install + the turbo cache policy
+
+inputs:
+  turbo-cache:
+    description: "'restore' (default) or 'save' — see the policy note above"
+    default: restore
+  npm-token:
+    description: >-
+      The NPM_TOKEN repository secret, for a job that publishes to npm. A composite action cannot
+      read secrets, so such a caller passes it. An install reads public npm and needs no token.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    # One line in the user config, never in the committed .npmrc (pnpm drops that whole file when a
+    # ${VAR} in it is unset; see .npmrc). An empty token is said out loud rather than left to
+    # surface as a 401 on the first registry fetch.
+    - name: Log in to npm
+      run: |
+        if [ -z "$NPM_TOKEN" ]; then
+          echo "no npm token: installing from public npm without a login"
+          exit 0
+        fi
+        printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" >> ~/.npmrc
+      env:
+        NPM_TOKEN: ${{ inputs.npm-token }}
+      shell: bash
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+
+    - if: inputs.turbo-cache == 'save'
+      uses: actions/cache@v6
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ github.sha }}
+        restore-keys: turbo-${{ runner.os }}-
+
+    - if: inputs.turbo-cache == 'save'
+      name: Prune stale turbo cache entries
+      run: "[ -d .turbo/cache ] && find .turbo/cache -type f -mtime +14 -delete || true"
+      shell: bash
+
+    - if: inputs.turbo-cache == 'restore'
+      uses: actions/cache/restore@v6
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ github.sha }}
+        restore-keys: turbo-${{ runner.os }}-

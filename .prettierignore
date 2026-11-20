@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+pnpm-lock.yaml
+
+# Package READMEs are hand-authored prose; Prettier does not reflow them.
+packages/*/*/README.md
+
+# Operator-local Atlas inputs (git-ignored, multi-GB) and the acquisition records the
+# import job writes next to them: generated, machine-written, never hand-edited.
+apps/atlas/osm-import/pbf/
+apps/atlas/osm-import/data/
+apps/atlas/state/
+
+# Published volumes: signed cell tiles per version, git-ignored and written by
+# `cartographer publish`. Reformatting one would change its bytes, and a tile's bytes are what the
+# manifest hash and the volume signature are over.
+apps/atlas/published/
+
+# The published OpenAPI spec, written by `pnpm --filter @beaconsgg/server-app openapi`: a test
+# compares it to the generated document, so its bytes are the script's.
+apps/server/openapi.json

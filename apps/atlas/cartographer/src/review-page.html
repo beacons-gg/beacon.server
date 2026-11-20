@@ -1,0 +1,1001 @@
+<!doctype html>
+<!--
+  The decisions review console (`apps/atlas/doc/spec/cartographer.md` §5), served by `cartographer review`.
+
+  One static page, no framework, no build: the server is review.ts, the contract is identity.ts's,
+  and every node string this page sends back was built server-side — it never spells `record:…`
+  itself, and which decisions touch a refusal is matched server-side too. This page is presentation.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cartographer — review</title>
+    <link rel="stylesheet" href="/assets/maplibre-gl.css" />
+    <style>
+      :root {
+        --ink: #1c1917;
+        --muted: #78716c;
+        --line: #e7e5e4;
+        --paper: #fafaf9;
+        --card: #ffffff;
+        --gold: #b45309;
+        --danger: #b91c1c;
+        --ok: #15803d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      /*
+        Every panel on this page is shown and hidden through the `hidden` attribute, and several of
+        them are addressed by id with a `display:` of their own (#modal, #grid, #main). An id selector
+        outranks the user agent's `[hidden] { display: none }`, so `hidden` silently stopped hiding
+        them — the modal's full-viewport scrim then covered the page from first paint. One rule, once,
+        rather than an `#x[hidden]` beside every panel that would have to be remembered for the next.
+      */
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--card);
+      }
+      header h1 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .mono {
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      header button {
+        margin-left: auto;
+      }
+      #layout {
+        display: grid;
+        grid-template-columns: 380px 1fr;
+        height: calc(100vh - 42px);
+      }
+      #sidebar {
+        border-right: 1px solid var(--line);
+        overflow-y: auto;
+        background: var(--card);
+      }
+      #sidebar .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        background: var(--card);
+        z-index: 1;
+      }
+      #sidebar .tabs button {
+        flex: 1;
+        border: 0;
+        background: none;
+        padding: 8px;
+        cursor: pointer;
+        color: var(--muted);
+      }
+      #sidebar .tabs button.active {
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: inset 0 -2px var(--gold);
+      }
+      .entry {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .entry:hover {
+        background: var(--paper);
+      }
+      .entry.selected {
+        background: #fef3c7;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 11px;
+        padding: 0 6px;
+        border-radius: 8px;
+        margin-right: 6px;
+      }
+      .chip.span {
+        background: #fee2e2;
+        color: var(--danger);
+      }
+      .chip.not-a-place {
+        background: #e7e5e4;
+        color: var(--muted);
+      }
+      .chip.decided {
+        background: #dcfce7;
+        color: var(--ok);
+      }
+      #main {
+        display: grid;
+        grid-template-rows: 44% 1fr;
+        min-width: 0;
+      }
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+      #detail {
+        overflow-y: auto;
+        padding: 14px 18px;
+      }
+      #detail h2 {
+        font-size: 14px;
+        margin: 0 0 2px;
+        font-family: ui-monospace, monospace;
+        word-break: break-all;
+      }
+      #detail .gate {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      td,
+      th {
+        text-align: left;
+        padding: 5px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .marker {
+        width: 22px;
+        height: 22px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        background: var(--gold);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 700 11px system-ui;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 40%);
+      }
+      .marker span {
+        transform: rotate(45deg);
+      }
+      button.act {
+        border: 1px solid var(--line);
+        background: var(--card);
+        border-radius: 6px;
+        padding: 3px 9px;
+        cursor: pointer;
+      }
+      button.act:hover {
+        background: var(--paper);
+      }
+      button.act.danger {
+        color: var(--danger);
+      }
+      button.act.primary {
+        background: var(--gold);
+        border-color: var(--gold);
+        color: #fff;
+      }
+      button.act:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      #mergebar {
+        margin: 10px 0;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .verdicts {
+        margin-top: 14px;
+      }
+      .verdicts h3,
+      #decision-log h3 {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      #error {
+        color: var(--danger);
+        font-size: 12px;
+        padding: 4px 16px;
+      }
+      a {
+        color: var(--gold);
+      }
+      .empty {
+        padding: 24px 16px;
+        color: var(--muted);
+      }
+      /* ── the Media tab: a contact sheet, and one photo at a time in a modal ── */
+      #grid {
+        overflow-y: auto;
+        padding: 10px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 8px;
+        align-content: start;
+      }
+      .shot {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--card);
+        cursor: pointer;
+      }
+      .shot:hover {
+        border-color: var(--gold);
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        background: var(--line);
+      }
+      .shot .cap {
+        padding: 4px 6px;
+        font-size: 11px;
+        line-height: 1.3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .shot .cap b {
+        font-weight: 600;
+      }
+      #media-controls {
+        padding: 10px 12px;
+      }
+      #media-controls .stat {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      #media-controls .stat b {
+        color: var(--ink);
+        font-size: 14px;
+      }
+      .srcbtn {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: none;
+        padding: 4px 6px;
+        cursor: pointer;
+        font-size: 12px;
+        border-radius: 4px;
+        color: var(--ink);
+      }
+      .srcbtn:hover {
+        background: var(--paper);
+      }
+      .srcbtn.on {
+        background: #fef3c7;
+        font-weight: 600;
+      }
+      #modal {
+        position: fixed;
+        inset: 0;
+        background: rgb(0 0 0 / 55%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 10;
+      }
+      #modal .sheet {
+        background: var(--card);
+        border-radius: 8px;
+        max-width: 1000px;
+        width: 100%;
+        max-height: 100%;
+        overflow-y: auto;
+        padding: 16px 18px;
+      }
+      #modal img {
+        max-width: 100%;
+        max-height: 55vh;
+        display: block;
+        margin: 0 auto 10px;
+        background: var(--line);
+      }
+      #modal .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 0;
+        border-top: 1px solid var(--line);
+      }
+      #modal .row .grow {
+        flex: 1;
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Cartographer — identity review</h1>
+      <span class="muted" id="who"></span>
+      <span class="muted"
+        >identity verdicts apply at the next <b>resolve</b>; media and place ones at
+        <b>publish</b></span
+      >
+      <button class="act" id="refresh">Refresh</button>
+    </header>
+    <div id="error"></div>
+    <div id="layout">
+      <aside id="sidebar">
+        <div class="tabs">
+          <button id="tab-queue" class="active">Queue</button>
+          <button id="tab-log">Decisions</button>
+          <button id="tab-media">Media</button>
+        </div>
+        <div id="queue"></div>
+        <div id="decision-log" hidden></div>
+        <div id="media-controls" hidden></div>
+      </aside>
+      <div id="main">
+        <div id="map"></div>
+        <section id="detail"><div class="empty">Select a refusal from the queue.</div></section>
+      </div>
+      <div id="grid" hidden></div>
+    </div>
+    <div id="modal" hidden></div>
+    <script src="/assets/maplibre-gl.js"></script>
+    <script>
+      "use strict";
+      const state = { data: null, selected: null, checked: new Set() };
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+
+      const map = new maplibregl.Map({
+        container: "map",
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution: "© OpenStreetMap contributors",
+            },
+          },
+          layers: [{ id: "osm", type: "raster", source: "osm" }],
+        },
+        center: [-120, 44],
+        zoom: 4,
+      });
+      let markers = [];
+      let markersFor = null; // which entry the pins currently show — a re-render of it must not re-fly the map
+
+      async function api(path, body) {
+        const res = await fetch(
+          path,
+          body
+            ? {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(body),
+              }
+            : undefined,
+        );
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || res.statusText);
+        return json;
+      }
+
+      async function load() {
+        $("error").textContent = "";
+        try {
+          state.data = await api("/api/review");
+          $("who").textContent = "reviewer: " + state.data.reviewer;
+          if (state.selected) {
+            state.selected =
+              state.data.queue.find((e) => e.upstreamId === state.selected.upstreamId) || null;
+          }
+          render();
+        } catch (err) {
+          $("error").textContent = String(err.message || err);
+        }
+      }
+
+      /** Run one mutation, then reload the view it changed — the shape every action shares. */
+      async function act(fn, reload) {
+        $("error").textContent = "";
+        try {
+          await fn();
+          await (reload ?? load)();
+        } catch (err) {
+          $("error").textContent = String(err.message || err);
+        }
+      }
+
+      const fmtSpan = (m) =>
+        m >= 1000
+          ? (m / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " km"
+          : m + " m";
+
+      /** One decision row, wherever it renders; `wireWithdraw` hooks its button after innerHTML lands. */
+      const decisionRowHtml = (d) =>
+        '<span class="chip ' +
+        (d.verdict === "same" ? "decided" : "span") +
+        '">' +
+        esc(d.verdict) +
+        "</span>" +
+        '<span class="mono">' +
+        esc(d.a) +
+        " / " +
+        esc(d.b) +
+        "</span> " +
+        '<span class="muted">' +
+        esc(d.decidedBy) +
+        " · " +
+        new Date(d.decidedAt).toLocaleString() +
+        "</span> " +
+        '<button class="act danger" data-a="' +
+        esc(d.a) +
+        '" data-b="' +
+        esc(d.b) +
+        '">Withdraw</button>';
+
+      function wireWithdraw(container) {
+        for (const btn of container.querySelectorAll("button[data-a]")) {
+          btn.onclick = () =>
+            act(() => api("/api/decisions/delete", { a: btn.dataset.a, b: btn.dataset.b }));
+        }
+      }
+
+      function render() {
+        renderQueue();
+        renderLog();
+        renderDetail();
+      }
+
+      function renderQueue() {
+        const queue = state.data.queue;
+        $("queue").innerHTML =
+          queue.length === 0
+            ? '<div class="empty">No refusals — the gate has nothing pending. Run <b>resolve</b> to re-measure.</div>'
+            : queue
+                .map((e, i) => {
+                  const decided = e.decisions.length;
+                  return (
+                    '<div class="entry' +
+                    (state.selected === e ? " selected" : "") +
+                    '" data-i="' +
+                    i +
+                    '">' +
+                    '<span class="chip ' +
+                    e.reason +
+                    '">' +
+                    e.reason +
+                    "</span>" +
+                    (decided > 0
+                      ? '<span class="chip decided">' +
+                        decided +
+                        " verdict" +
+                        (decided > 1 ? "s" : "") +
+                        "</span>"
+                      : "") +
+                    '<div class="mono">' +
+                    esc(e.upstreamId) +
+                    "</div>" +
+                    (e.label ? '<div class="muted">' + esc(e.label) + "</div>" : "") +
+                    '<div class="muted">' +
+                    e.records +
+                    " records" +
+                    (e.spanM !== undefined ? " · " + fmtSpan(e.spanM) + " apart" : "") +
+                    "</div>" +
+                    "</div>"
+                  );
+                })
+                .join("");
+        for (const el of $("queue").querySelectorAll(".entry")) {
+          el.onclick = () => {
+            state.selected = queue[Number(el.dataset.i)];
+            state.checked.clear();
+            render();
+          };
+        }
+      }
+
+      function renderLog() {
+        const rows = state.data.decisions;
+        $("decision-log").innerHTML =
+          "<h3 style='padding:0 12px'>All decisions (" +
+          rows.length +
+          ")</h3>" +
+          (rows.length === 0
+            ? '<div class="empty">None yet.</div>'
+            : rows.map((d) => '<div class="entry">' + decisionRowHtml(d) + "</div>").join(""));
+        wireWithdraw($("decision-log"));
+      }
+
+      function renderDetail() {
+        const entry = state.selected;
+        if (!entry) {
+          $("detail").innerHTML = '<div class="empty">Select a refusal from the queue.</div>';
+          setMarkers(null);
+          return;
+        }
+        const letters = entry.asserters.map((_, i) => String.fromCharCode(65 + (i % 26)));
+        const wd = entry.upstreamId.startsWith("wd:")
+          ? ' — <a href="https://www.wikidata.org/wiki/' +
+            esc(entry.upstreamId.slice(3)) +
+            '" target="_blank" rel="noreferrer">wikidata</a>'
+          : "";
+        const gate =
+          entry.reason === "span"
+            ? "gate: shared by " +
+              entry.records +
+              " records " +
+              fmtSpan(entry.spanM || 0) +
+              " apart — more than the 500 m a single place can span"
+            : "gate: the concordance says this id does not name a place (no coordinates) — refused deterministically; verdicts here are rarely needed";
+        $("detail").innerHTML =
+          "<h2>" +
+          esc(entry.upstreamId) +
+          wd +
+          "</h2>" +
+          (entry.label ? "<div>" + esc(entry.label) + "</div>" : "") +
+          (entry.labelAbsent ? "<div>Wikidata answered: no such entity.</div>" : "") +
+          '<div class="gate">' +
+          gate +
+          "</div>" +
+          "<table><tr><th></th><th>merge</th><th>name</th><th>record</th><th>category</th><th></th></tr>" +
+          entry.asserters
+            .map(
+              (r, i) =>
+                "<tr><td><b>" +
+                letters[i] +
+                "</b></td>" +
+                '<td><input type="checkbox" data-node="' +
+                esc(r.node) +
+                '"' +
+                (state.checked.has(r.node) ? " checked" : "") +
+                "></td>" +
+                "<td>" +
+                esc(r.name || "—") +
+                "</td>" +
+                '<td class="mono">' +
+                esc(r.source) +
+                "/" +
+                esc(r.sourceId) +
+                "</td>" +
+                "<td>" +
+                esc(r.category) +
+                (r.subcategory ? " · " + esc(r.subcategory) : "") +
+                "</td>" +
+                '<td><button class="act danger" data-sever="' +
+                esc(r.node) +
+                '" title="Sever this record\'s claim to the id — it does not really assert it">not this id</button></td></tr>',
+            )
+            .join("") +
+          "</table>" +
+          '<div id="mergebar"><button class="act primary" id="merge" disabled>Same place</button>' +
+          "<span>check the records that are one place, then confirm — writes a same verdict between them, which outranks the gate</span></div>" +
+          '<div class="verdicts"><h3>Verdicts on this refusal</h3><div id="verdicts"></div></div>';
+
+        $("verdicts").innerHTML =
+          entry.decisions.length === 0
+            ? '<span class="muted">none yet</span>'
+            : entry.decisions.map((d) => "<div>" + decisionRowHtml(d) + "</div>").join("");
+        wireWithdraw($("verdicts"));
+        for (const box of $("detail").querySelectorAll("input[type=checkbox]")) {
+          box.onchange = () => {
+            box.checked
+              ? state.checked.add(box.dataset.node)
+              : state.checked.delete(box.dataset.node);
+            syncMerge();
+          };
+        }
+        for (const btn of $("detail").querySelectorAll("button[data-sever]")) {
+          btn.onclick = () =>
+            act(() =>
+              api("/api/decisions", {
+                a: btn.dataset.sever,
+                b: entry.upstreamId,
+                verdict: "distinct",
+                context: entry.upstreamId,
+              }),
+            );
+        }
+        $("merge").onclick = mergeChecked;
+        syncMerge();
+        setMarkers(entry);
+      }
+
+      function syncMerge() {
+        const n = state.checked.size;
+        $("merge").disabled = n < 2;
+        $("merge").textContent = n < 2 ? "Same place" : "Same place (" + n + " records)";
+      }
+
+      function setMarkers(entry) {
+        // Re-rendering the same entry (after a verdict) keeps the pins and the camera still — the
+        // map only moves when the reviewer moves to a different refusal.
+        const key = entry ? entry.upstreamId : null;
+        if (key === markersFor) return;
+        markersFor = key;
+        for (const m of markers) m.remove();
+        markers = [];
+        if (!entry) return;
+        const letters = entry.asserters.map((_, i) => String.fromCharCode(65 + (i % 26)));
+        markers = entry.asserters.map((p, i) => {
+          const el = document.createElement("div");
+          el.className = "marker";
+          el.innerHTML = "<span>" + letters[i] + "</span>";
+          return new maplibregl.Marker({ element: el, anchor: "bottom" })
+            .setLngLat([p.lon, p.lat])
+            .setPopup(
+              new maplibregl.Popup({ closeButton: false }).setHTML(
+                "<b>" + letters[i] + "</b> " + esc(p.name || p.sourceId),
+              ),
+            )
+            .addTo(map);
+        });
+        if (entry.asserters.length > 0) {
+          const first = [entry.asserters[0].lon, entry.asserters[0].lat];
+          const bounds = entry.asserters.reduce(
+            (b, p) => b.extend([p.lon, p.lat]),
+            new maplibregl.LngLatBounds(first, first),
+          );
+          map.fitBounds(bounds, { padding: 60, maxZoom: 16, duration: 400 });
+        }
+      }
+
+      /** N checked records become N−1 chained `same` pairs — the union makes the chain transitive. */
+      function mergeChecked() {
+        const nodes = [...state.checked].sort();
+        act(async () => {
+          for (let i = 0; i + 1 < nodes.length; i++) {
+            await api("/api/decisions", {
+              a: nodes[i],
+              b: nodes[i + 1],
+              verdict: "same",
+              context: state.selected.upstreamId,
+            });
+          }
+          state.checked.clear();
+        });
+      }
+
+      // ── the Media tab ────────────────────────────────────────────────────────────────────────
+      // The loop this is shaped around: scan a page of thumbs, click only the bad ones, approve the
+      // rest in one go — 54k photos are only reviewable if the default action is bulk.
+      const media = {
+        stats: null,
+        entries: [],
+        source: "",
+        open: null,
+        places: [],
+        /** Where a skipped page left off — the only way past photos you do not want to rule on. */
+        after: null,
+        /** The last verdict, so one click takes it back. Every verdict here is a row, not a change. */
+        undo: null,
+      };
+      const blobUrl = (hash) => "/blob?hash=" + encodeURIComponent(hash);
+
+      const mediaQuery = () => {
+        const q = new URLSearchParams();
+        if (media.source) q.set("source", media.source);
+        if (media.after) {
+          q.set("afterAt", media.after.fetchedAt);
+          q.set("afterKey", media.after.fileKey);
+        }
+        return q.toString();
+      };
+
+      async function loadMedia() {
+        const data = await api("/api/media?" + mediaQuery());
+        media.stats = data.stats;
+        media.entries = data.entries;
+        renderMedia();
+      }
+
+      /** The source filter — the one map+wire pair in this tab, so it gets the file's usual shape. */
+      const sourceButtons = (sources) =>
+        [{ source: "", unreviewed: null }, ...sources]
+          .map(
+            (src) =>
+              '<button class="srcbtn' +
+              (media.source === src.source ? " on" : "") +
+              '" data-src="' +
+              esc(src.source) +
+              '">' +
+              (src.source ? esc(src.source) + " · " + src.unreviewed.toLocaleString() : "all") +
+              "</button>",
+          )
+          .join("");
+
+      /**
+       * Take back the last verdict. Every verdict here is a row rather than a mutation, so undo is a
+       * delete — no re-crawl, and the photo returns to the queue exactly as it was.
+       */
+      function undoLast() {
+        const undo = media.undo;
+        if (!undo) return;
+        media.undo = null;
+        act(async () => {
+          if (undo.entityId && !undo.fileKey) {
+            await api("/api/places/restore", { entityId: undo.entityId });
+          } else {
+            for (const fileKey of undo.fileKeys ?? [undo.fileKey]) {
+              await api("/api/media/withdraw", {
+                fileKey,
+                ...(undo.entityId ? { entityId: undo.entityId } : {}),
+              });
+            }
+          }
+        }, loadMedia);
+      }
+
+      function renderMedia() {
+        const s = media.stats;
+        $("media-controls").innerHTML =
+          '<div class="stat"><b>' +
+          s.unreviewed.toLocaleString() +
+          "</b> unreviewed of " +
+          s.published.toLocaleString() +
+          " published</div>" +
+          '<div class="stat">' +
+          s.approved.toLocaleString() +
+          " approved · " +
+          s.rejected +
+          " rejected · " +
+          s.unlinked +
+          " unlinked · " +
+          s.placesRemoved +
+          " place(s) removed</div>" +
+          '<button class="act primary" id="approve-page" style="width:100%;margin-bottom:6px">' +
+          "Approve these " +
+          media.entries.length +
+          "</button>" +
+          '<button class="act" id="skip-page" style="width:100%;margin-bottom:6px">' +
+          "Skip this page</button>" +
+          (media.after
+            ? '<button class="act" id="back-to-head" style="width:100%;margin-bottom:6px">' +
+              "Back to the newest</button>"
+            : "") +
+          (media.undo
+            ? '<button class="act danger" id="undo" style="width:100%;margin-bottom:10px">Undo: ' +
+              esc(media.undo.label) +
+              "</button>"
+            : "") +
+          '<div class="muted" style="margin-bottom:4px">Source</div>' +
+          sourceButtons(s.sources);
+        for (const btn of $("media-controls").querySelectorAll(".srcbtn")) {
+          btn.onclick = () => {
+            media.source = btn.dataset.src;
+            media.after = null; // a different source starts at its own newest
+            act(() => Promise.resolve(), loadMedia);
+          };
+        }
+        const approve = $("approve-page");
+        approve.disabled = media.entries.length === 0;
+        approve.onclick = () => {
+          const fileKeys = media.entries.map((e) => e.fileKey);
+          media.undo = { label: `approved ${fileKeys.length}`, fileKeys };
+          act(() => api("/api/media/approve", { fileKeys }), loadMedia);
+        };
+        // Advancing without ruling: the cursor is the only way past a page you are not sure about,
+        // since approving it would claim you had judged every photo on it.
+        const last = media.entries[media.entries.length - 1];
+        const skip = $("skip-page");
+        skip.disabled = !last;
+        skip.onclick = () => {
+          media.after = { fetchedAt: last.fetchedAt, fileKey: last.fileKey };
+          act(() => Promise.resolve(), loadMedia);
+        };
+        if (media.after) {
+          $("back-to-head").onclick = () => {
+            media.after = null;
+            act(() => Promise.resolve(), loadMedia);
+          };
+        }
+        if (media.undo) $("undo").onclick = undoLast;
+
+        $("grid").innerHTML =
+          media.entries.length === 0
+            ? '<div class="empty">Nothing unreviewed here. Run <b>media</b> for more, or pick another source.</div>'
+            : media.entries
+                .map(
+                  (e, i) =>
+                    '<div class="shot" data-i="' +
+                    i +
+                    '"><img loading="lazy" src="' +
+                    blobUrl(e.thumbHash) +
+                    '" alt=""><div class="cap"><b>' +
+                    esc(e.placeName || "(unnamed place)") +
+                    "</b></div>" +
+                    '<div class="cap muted">' +
+                    esc(e.source) +
+                    (e.places > 1 ? " · " + e.places + " places" : "") +
+                    "</div></div>",
+                )
+                .join("");
+        for (const el of $("grid").querySelectorAll(".shot")) {
+          el.onclick = () => openPhoto(media.entries[Number(el.dataset.i)]);
+        }
+      }
+
+      async function openPhoto(entry) {
+        media.open = entry;
+        try {
+          media.places = (
+            await api("/api/media/places?file=" + encodeURIComponent(entry.fileKey))
+          ).places;
+        } catch (err) {
+          media.places = [];
+          $("error").textContent = String(err.message || err);
+        }
+        renderModal();
+      }
+
+      function renderModal() {
+        const e = media.open;
+        if (!e) {
+          $("modal").hidden = true;
+          return;
+        }
+        $("modal").hidden = false;
+        const credit = [e.author, e.license].filter(Boolean).map(esc).join(" · ");
+        $("modal").innerHTML =
+          '<div class="sheet"><img src="' +
+          blobUrl(e.fullHash) +
+          '" alt="">' +
+          '<div class="mono">' +
+          esc(e.fileKey) +
+          "</div>" +
+          '<div class="muted">' +
+          esc(e.source) +
+          (credit ? " · " + credit : "") +
+          (e.sourceUrl
+            ? ' · <a href="' + esc(e.sourceUrl) + '" target="_blank" rel="noreferrer">source</a>'
+            : "") +
+          "</div>" +
+          media.places
+            .map(
+              (p, i) =>
+                '<div class="row"><div class="grow"><b>' +
+                esc(p.name || "(unnamed)") +
+                "</b> " +
+                '<span class="muted">' +
+                esc(p.category || "") +
+                (p.removed ? " · REMOVED" : "") +
+                (p.unlinked ? " · unlinked" : "") +
+                "</span></div>" +
+                '<button class="act" data-unlink="' +
+                i +
+                '"' +
+                (p.unlinked ? " disabled" : "") +
+                ' title="This photo is fine, it is just not of this place">not this place</button>' +
+                '<button class="act danger" data-remove="' +
+                i +
+                '"' +
+                (p.removed ? " disabled" : "") +
+                ' title="This place should not ship at all">remove place</button></div>',
+            )
+            .join("") +
+          '<div class="row"><div class="grow muted">A reject withholds this photo from every place' +
+          (media.places.length > 1 ? " — it is on " + media.places.length + " of them" : "") +
+          ". Verdicts apply at the next <b>publish</b>.</div>" +
+          '<button class="act" id="m-ok">Looks fine</button>' +
+          '<button class="act danger" id="m-reject">Reject photo</button>' +
+          '<button class="act" id="m-close">Close</button></div></div>';
+
+        const close = () => {
+          media.open = null;
+          $("modal").hidden = true;
+        };
+        $("m-close").onclick = close;
+        const rule = (body, label) => {
+          media.undo = {
+            label,
+            fileKey: body.fileKey,
+            ...(body.entityId && { entityId: body.entityId }),
+          };
+          act(async () => {
+            await api("/api/media/verdict", body);
+            close();
+          }, loadMedia);
+        };
+        $("m-ok").onclick = () => rule({ fileKey: e.fileKey, verdict: "ok" }, "approved 1");
+        $("m-reject").onclick = () => {
+          const reason = window.prompt("Why is this photo not allowed? (optional)") ?? "";
+          rule(
+            { fileKey: e.fileKey, verdict: "reject", ...(reason ? { reason } : {}) },
+            "rejected a photo",
+          );
+        };
+        for (const btn of $("modal").querySelectorAll("button[data-unlink]")) {
+          const place = media.places[Number(btn.dataset.unlink)];
+          btn.onclick = () =>
+            rule(
+              { fileKey: e.fileKey, entityId: place.entityId, verdict: "unlink" },
+              "unlinked a photo",
+            );
+        }
+        for (const btn of $("modal").querySelectorAll("button[data-remove]")) {
+          const place = media.places[Number(btn.dataset.remove)];
+          btn.onclick = () => {
+            const name = place.name || place.entityId;
+            if (!window.confirm(`Remove "${name}" from the dataset?`)) return;
+            const reason = window.prompt("Why? (optional)") ?? "";
+            media.undo = { label: `removed ${name}`, entityId: place.entityId };
+            act(async () => {
+              await api("/api/places/remove", {
+                entityId: place.entityId,
+                ...(reason ? { reason } : {}),
+              });
+              close();
+            }, loadMedia);
+          };
+        }
+      }
+
+      let tab = "queue";
+
+      function setTab(name) {
+        tab = name;
+        for (const [id, panel] of [
+          ["queue", "queue"],
+          ["log", "decision-log"],
+          ["media", "media-controls"],
+        ]) {
+          $("tab-" + id).className = name === id ? "active" : "";
+          $(panel).hidden = name !== id;
+        }
+        // The grid takes the main column when it is showing — a contact sheet wants the width.
+        $("main").hidden = name === "media";
+        $("grid").hidden = name !== "media";
+        if (name === "media" && media.stats === null) act(() => Promise.resolve(), loadMedia);
+      }
+
+      $("refresh").onclick = () =>
+        tab === "media" ? act(() => Promise.resolve(), loadMedia) : load();
+      $("tab-queue").onclick = () => setTab("queue");
+      $("tab-log").onclick = () => setTab("log");
+      $("tab-media").onclick = () => setTab("media");
+      load();
+    </script>
+  </body>
+</html>
