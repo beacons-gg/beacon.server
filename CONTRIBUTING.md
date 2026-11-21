@@ -22,7 +22,7 @@ game, and the gate refuses an import of a game in server code.
 The maintainers build and change the project in these steps.
 
 1. A change starts on a branch off `main`.
-2. The workspace is set up as [Work in this repository](README.md#work-in-this-repository)
+2. The workspace is set up as [Development](README.md#development)
    describes: Node 22 from `.nvmrc`, pnpm from `packageManager` and Docker for the test database.
 3. The change comes with tests. Every workspace holds a coverage floor, and the gate fails under the
    floor.
@@ -35,7 +35,7 @@ The maintainers build and change the project in these steps.
    ```
 
    `pnpm test:db` starts a throwaway Postgres database and prints the URL to export. The gate is the
-   same script CI runs, and [The quality bar](README.md#the-quality-bar) lists its checks.
+   same script CI runs, and [The quality bar](doc/development.md#the-quality-bar) lists its checks.
 
 ## Pull requests
 
