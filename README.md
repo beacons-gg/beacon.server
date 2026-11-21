@@ -1,148 +1,117 @@
-# Beacon server
+# Beacon Server
 
-Beacon is a network of servers for games played at real places, and anyone can run a server.
-[Beacon Hosting](https://beacons.gg/hosting) runs a server for you, and its page has the plans and
-prices. To run a server yourself, follow [the self-hosting guide](https://beacons.gg/docs/self-hosting).
+The Beacon server implements the server-side infrastructure for the Beacon network. The server provides persistent storage, identity verification, access policies, and consistent state management for games using Beacon.
 
-This repository holds the Beacon server and the server-side packages it is built from. The
-repository also holds Atlas. Atlas is the offline toolchain that builds the place datasets a server imports. A release ships three
-images: the server and the two Atlas images.
+This repository contains the server application and its internal packages. The repository also contains Atlas, the toolchain used to build geographic datasets imported by Beacon servers.
 
-| Path                      | Package                   | What it is                                                                                                        |
-| ------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `apps/server`             | `@beaconsgg/server-app`   | the NestJS and PostgreSQL server ([README](apps/server/README.md))                                                |
-| `packages/server/*`       | `@beaconsgg/*` (private)  | the server's packages (listed below)                                                                              |
-| `apps/flows`              | `@beaconsgg/flows`        | the five-flow driver, which is the end-to-end suite and the skew matrix's client ([README](apps/flows/README.md)) |
-| `apps/atlas`              |                           | the Atlas toolchain around one PostGIS database ([README](apps/atlas/README.md))                                  |
-| `apps/atlas/cartographer` | `@beaconsgg/cartographer` | Atlas's builder, with a subcommand per stage ([README](apps/atlas/cartographer/README.md))                        |
-| `apps/atlas/osm-import`   |                           | the osm2pgsql import job ([README](apps/atlas/osm-import/README.md))                                              |
-| `doc/`                    |                           | the [deploy guide](doc/deploy.md) and the [game couplings](doc/known-couplings.md)                                |
+[beacons.gg](https://beacons.gg) explains how Beacon works. To run a server without operating it yourself, [Beacon Hosting](https://beacons.gg/hosting) runs one for you.
 
-The server's packages are `policy-engine`, `server-runtime`, `atlas-volume`, `place-taxonomy`,
-`wikimedia` and `image-encode`.
+## Architecture
 
-The design specs are in [`doc/spec/`](doc/spec/README.md), and Atlas's are in
-[`apps/atlas/doc/spec/`](apps/atlas/doc/spec/README.md). The code cites them by section.
+The server is game-agnostic. The server provides shared infrastructure without implementing game-specific mechanics or rules.
 
-The server is **game-agnostic**. The server understands rooms, identity verification, JSONLogic
-rules and scout relays. The server decides nothing about gameplay. No code here names a
-game, and the lint enforces that (see [The quality bar](#the-quality-bar)). A game is a client of the
-server through the published `@beaconsgg/*` client packages. The operator console (beacon.admin)
-reaches the server over the signed admin routes.
+The server's primary responsibilities are:
 
-## What the server takes from Beacon
+- **Rooms and items:** Store and manage game-specific content within rooms.
+- **Identity verification:** Verify device-based cryptographic identities and signed operations.
+- **Access policies:** Evaluate JSONLogic rules governing access to rooms and operations.
+- **Shared state:** Maintain consistent state when multiple players interact with the same resources.
+- **Scout relays:** Relay signed scout reports to the players watching the map.
 
-The server installs these packages from the public npm registry, with no token.
+The server verifies operations and maintains state, but does not interpret game-specific item data or make gameplay decisions. Games define their own mechanics, progression, and data formats.
 
-- The core packages: `@beaconsgg/protocol-types`, `@beaconsgg/identity`, `@beaconsgg/geo`,
-  `@beaconsgg/jsonlogic-profile` and `@beaconsgg/scout-interp`. Beacon versions them together with
-  two client packages. The five-flow driver is a client and installs `@beaconsgg/client-sdk`.
-  Server code may not import the SDK, and the lint enforces that.
-- The presets Beacon's repositories build with: `@beaconsgg/tsconfig`, `@beaconsgg/vitest-config`,
-  `@beaconsgg/eslint-config` and `@beaconsgg/prettier-config`.
+The server is part of the wider Beacon system:
 
-The server takes all of them at `^1.0.0`, the range of core's first stable release. The lockfile
-pins the version the server is tested on.
+- **Beacon Core** defines the shared protocol, identity, geographic, policy, and scout packages.
+- **Beacon Server** implements persistent storage, policy enforcement, and shared-state operations.
+- **Games** interact with servers through the published client SDK.
+- **Beacon Admin** manages server configuration through signed administrative routes.
 
-## Work in this repository
+These boundaries are enforced through repository lint rules. Server code may not import a game, the client SDK or the admin console.
 
-You need Node 22, pnpm 10.33 and Docker. Run `nvm use` to pick up the Node version from `.nvmrc`.
-Run `corepack enable` to pick up pnpm from `packageManager`. Docker runs the Postgres database the
-server suite needs and the deployable shape. Run `pnpm install`, and then:
+## Repository structure
+
+| Path                      | Package                   | Description                                                                       |
+| ------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `apps/server`             | `@beaconsgg/server-app`   | NestJS application and PostgreSQL-backed server ([README](apps/server/README.md)) |
+| `packages/server/*`       | `@beaconsgg/*` (private)  | Internal server packages                                                          |
+| `apps/flows`              | `@beaconsgg/flows`        | Integration and compatibility test driver ([README](apps/flows/README.md))        |
+| `apps/atlas`              |                           | Geographic dataset toolchain ([README](apps/atlas/README.md))                     |
+| `apps/atlas/cartographer` | `@beaconsgg/cartographer` | Dataset builder ([README](apps/atlas/cartographer/README.md))                     |
+| `apps/atlas/osm-import`   |                           | OpenStreetMap import job                                                          |
+| `doc/`                    |                           | Deployment and server documentation                                               |
+
+Internal server packages:
+
+- `policy-engine`
+- `server-runtime`
+- `atlas-volume`
+- `place-taxonomy`
+- `wikimedia`
+- `image-encode`
+
+Server specifications are maintained in [`doc/spec/`](doc/spec/README.md), with Atlas specifications in [`apps/atlas/doc/spec/`](apps/atlas/doc/spec/README.md).
+
+## Running a server
+
+Beacon servers can be self-hosted or deployed through [Beacon Hosting](https://beacons.gg/hosting). [Choose how to run a server](https://beacons.gg/docs/run-a-server) compares the two.
+
+- **Self-hosting:** Follow the [self-hosting guide](https://beacons.gg/docs/self-hosting).
+- **Deployment:** See [`doc/deploy.md`](doc/deploy.md) for container configuration, environment variables, and production deployment instructions.
+- **Managed hosting:** See [Beacon Hosting](https://beacons.gg/hosting) for managed server deployment.
+- **Management:** Manage a running server in the [operator console](https://console.beacons.gg).
+
+The Docker Compose configuration included in this repository provides a local deployment consisting of the server, PostgreSQL, and MinIO for media storage.
+
+## Development
+
+### Requirements
+
+- Node.js 22
+- pnpm 10.33
+- Docker
+
+The repository uses `.nvmrc` for the Node.js version and `packageManager` in `package.json` for pnpm.
+
+### Setup
 
 ```sh
-pnpm test:db                 # a throwaway Postgres database for the suites; prints the BEACON_TEST_DATABASE_URL to export
-pnpm run gate                # everything CI runs
-pnpm run build               # the packages' dist/, then the server and Cartographer
-pnpm --filter @beaconsgg/server-app dev   # build and run the server locally
-docker compose up --build    # the deployable shape: the server, Postgres and MinIO for media
+nvm use
+corepack enable
+pnpm install
 ```
 
-Set `BEACON_TEST_DB_PORT` to move the test database off port `55432` when another process holds
-the port. The deployable shape is described in [`doc/deploy.md`](doc/deploy.md).
+The test suites require PostgreSQL. Start a temporary test database with:
 
-## The quality bar
+```sh
+pnpm test:db
+```
 
-The gate is the `gate` script in `package.json`. `.github/workflows/ci.yml` runs the gate with a
-Postgres service on every pull request marked ready. A draft runs nothing. The gate runs these checks in order:
+The command prints a `BEACON_TEST_DATABASE_URL` to export in your shell.
 
-1. **Coverage floors.** Every suite reports coverage and holds a floor
-   (`beacon-check-coverage-tasks`, from `@beaconsgg/vitest-config`). The repository floor is 81% of
-   lines. Three workspaces set their own floor a little under what they measure. Their
-   coverage can't slide while it climbs: `@beaconsgg/atlas-volume` (40), `@beaconsgg/cartographer` (60) and
-   `@beaconsgg/place-taxonomy` (60).
-2. **The tier gate.** `beacon-check-tier-gate` and the lint step, from `@beaconsgg/eslint-config`,
-   keep games, the client SDK and the console out of server code. The client SDK is installed here
-   for the driver. The root manifest names the SDK under `beacon.foreign.client`, and the gate
-   refuses it in server code by name. A game or the console isn't installed, so an import of one
-   fails to resolve. A test fixture module (`@beaconsgg/policy-engine/testing` or
-   `@beaconsgg/identity/conformance`) is imported only from a test.
-3. **The writing check.** `pnpm run check:copy` runs `beacon-check-copy` over every README and every
-   page under `doc/`, warnings included.
-4. **The reference check.** `pnpm run check:refs` runs `beacon-check-internal-refs` from
-   `@beaconsgg/eslint-config` with `--strict`. The check fails on anything in the repository that a
-   public reader can't open: an issue number, a private planning doc or a person's name. A link into
-   the public GitHub organization passes. The root manifest names that organization in
-   `beacon.internalRefs.publicOrg`. The check still lists the organization's current names without
-   failing on them (`--allow org-names`). Those names change on the day the repository moves to
-   the public organization.
-5. **The rest.** The build and the typecheck run first. The suites run with coverage, and then the
-   lint and the format check run.
+Set `BEACON_TEST_DB_PORT` to change the default test database port (`55432`) if it is already in use.
 
-Two more jobs run beside the gate on every pull request. The `docker` job builds the server and
-Cartographer images. The `s3-integration` job runs the media store's S3 path against MinIO.
+### Common commands
 
-## The skew matrix
+| Command                                   | Description                              |
+| ----------------------------------------- | ---------------------------------------- |
+| `pnpm run build`                          | Build packages, server, and Cartographer |
+| `pnpm run gate`                           | Run all CI checks                        |
+| `pnpm --filter @beaconsgg/server-app dev` | Build and run the server locally         |
+| `docker compose up --build`               | Start the server, PostgreSQL, and MinIO  |
 
-`.github/workflows/skew.yml` runs the five flows across versions, as beacon.core's
-`doc/core-compatibility.md` §6 describes. The matrix runs the driver over the published SDK at each
-edge of the core window against the head's server. The matrix also runs the head's driver against
-the server at this repository's latest release tag. The `apps/flows` suite covers both sides at the
-head in every gate. The cells run on a pull request that changes the server, the driver or the
-lockfile. The `Skew matrix` job runs on every ready pull request and is a required check. The job
-passes when each cell passed or had no reason to run, and fails when a cell failed. So a red cell
-blocks the merge. Section 4 of beacon.core's `doc/release-runbook.md` says how to read one.
-
-## Release
-
-Merging to `main` validates a change and ships nothing. To release, run the Release workflow by
-hand on `main` with `gh workflow run release.yml`. In GitHub the same workflow is under Actions >
-Release > Run workflow. The workflow:
-
-1. picks the tag, which is the next patch version (`v1.2.4` after `v1.2.3`) unless you name one
-   with `-f tag=v1.3.0`;
-2. runs the gate on that commit;
-3. pushes the three images to GitHub Container Registry with the release tag and `latest`;
-4. publishes the five-flow driver (`@beaconsgg/flows`) to npm when its
-   version is new;
-5. creates the git tag and the GitHub Release.
-
-The three images are `beacon-server`, `beacon-atlas-cartographer` and `beacon-atlas-import`.
-
-A run that fails leaves no tag behind. The images go up with the workflow's
-own token. The driver goes to npm with the `NPM_TOKEN` repository
-secret. To deploy a release, pull its tag as [`doc/deploy.md`](doc/deploy.md) describes.
-
-A change across repositories goes out in order. Core releases first. This server follows, and then
-the game. beacon.core's
-[`doc/release-runbook.md`](https://github.com/beacons-gg/beacon.core/blob/main/doc/release-runbook.md)
-covers the order and how to back a change out.
+[`doc/development.md`](doc/development.md) covers the packages the server takes from Beacon Core and the checks in the gate. The page also covers CI and the skew matrix. Maintainers release the server as [`doc/release.md`](doc/release.md) describes.
 
 ## Contributing and license
 
-The project isn't accepting pull requests from outside contributors right now. Issues are welcome,
-and [`CONTRIBUTING.md`](CONTRIBUTING.md) describes how to open one and how the project is built.
-Report a security issue in private, as [`SECURITY.md`](SECURITY.md) describes.
+External pull requests are not currently accepted, but issues and bug reports are welcome.
 
-The server, Atlas and the server's internal packages are licensed under the GNU Affero General Public
-License version 3 only ([`LICENSE`](LICENSE)). A server that runs a modified build must offer its
-users that build's source, and `BEACON_SOURCE_URL` links the source from the home page ([`doc/deploy.md`](doc/deploy.md)). The five-flow
-driver `@beaconsgg/flows` is licensed under the Apache License 2.0
-([`apps/flows/LICENSE`](apps/flows/LICENSE)). The copyright holder is NorthCtrl LLC, as
-[`COPYRIGHT`](COPYRIGHT) and [`apps/flows/NOTICE`](apps/flows/NOTICE) state.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development guidelines and [`SECURITY.md`](SECURITY.md) for private security vulnerability reporting.
 
-## History
+The server, Atlas, and internal server packages are licensed under **GNU AGPL-3.0-only**. See [`LICENSE`](LICENSE).
 
-The code was developed inside an earlier Beacon repository until October 2026 and moved here with
-its history. A commit message that names an issue or pull request in another repository refers to
-that repository. Beacon's published packages continue in beacon.core.
+Operators running modified server builds must make their source available to users. `BEACON_SOURCE_URL` provides the source link displayed on the server home page. See the [deployment guide](doc/deploy.md) for configuration details.
+
+The five-flow driver (`@beaconsgg/flows`) is separately licensed under **Apache-2.0**, documented in [`apps/flows/LICENSE`](apps/flows/LICENSE).
+
+The copyright holder is NorthCtrl LLC, as [`COPYRIGHT`](COPYRIGHT) and [`apps/flows/NOTICE`](apps/flows/NOTICE) state.

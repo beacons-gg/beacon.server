@@ -49,7 +49,7 @@ locally or pulling them from a registry. Building from source with compose still
 docker pull ghcr.io/beacons-gg/beacon-server:<tag>
 ```
 
-`<tag>` is a release tag such as `v0.0.0-260101-1`. The images are public, so a pull needs no login.
+`<tag>` is a release tag such as `v1.1.2`. The images are public, so a pull needs no login.
 
 The Postgres data lives in the named volume `beacon-pgdata`. So `docker compose restart server` or a
 container crash keeps every room, nonce and revocation: the state is in the database and not in the
