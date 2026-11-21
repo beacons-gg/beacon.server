@@ -1,5 +1,9 @@
 # Beacon server
 
+Beacon is a network of servers for games played at real places, and anyone can run a server.
+[Beacon Hosting](https://beacons.gg/hosting) runs a server for you, and its page has the plans and
+prices. To run a server yourself, follow [the self-hosting guide](https://beacons.gg/docs/self-hosting).
+
 This repository holds the Beacon server and the server-side packages it is built from. The
 repository also holds Atlas. Atlas is the offline toolchain that builds the place datasets a server imports. A release ships three
 images: the server and the two Atlas images.
