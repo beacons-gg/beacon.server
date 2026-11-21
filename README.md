@@ -4,6 +4,8 @@ The Beacon server implements the server-side infrastructure for the Beacon netwo
 
 This repository contains the server application and its internal packages. The repository also contains Atlas, the toolchain used to build geographic datasets imported by Beacon servers.
 
+[beacons.gg](https://beacons.gg) explains how Beacon works. To run a server without operating it yourself, [Beacon Hosting](https://beacons.gg/hosting) runs one for you.
+
 ## Architecture
 
 The server is game-agnostic. The server provides shared infrastructure without implementing game-specific mechanics or rules.
@@ -52,11 +54,12 @@ Server specifications are maintained in [`doc/spec/`](doc/spec/README.md), with 
 
 ## Running a server
 
-Beacon servers can be self-hosted or deployed through Beacon Hosting.
+Beacon servers can be self-hosted or deployed through [Beacon Hosting](https://beacons.gg/hosting). [Choose how to run a server](https://beacons.gg/docs/run-a-server) compares the two.
 
 - **Self-hosting:** Follow the [self-hosting guide](https://beacons.gg/docs/self-hosting).
 - **Deployment:** See [`doc/deploy.md`](doc/deploy.md) for container configuration, environment variables, and production deployment instructions.
 - **Managed hosting:** See [Beacon Hosting](https://beacons.gg/hosting) for managed server deployment.
+- **Management:** Manage a running server in the [operator console](https://console.beacons.gg).
 
 The Docker Compose configuration included in this repository provides a local deployment consisting of the server, PostgreSQL, and MinIO for media storage.
 
