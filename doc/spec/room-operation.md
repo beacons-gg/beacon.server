@@ -169,6 +169,13 @@ An item is authoritative in exactly one place, and a transfer happens inside one
 - **Grants:** a grant rule hands the actor items from a pool in room state, as the same custody
   transfer (§9.6).
 
+Holding an item once is a per-room rule. A server keeps no index of items across its rooms, so the
+same signed item can sit in two rooms on one server or in rooms on two servers. A player can also
+mint a new item with the same `match` under a fresh `unique`. These checks keep each room's state
+consistent and leave scarcity to the game. A game that needs scarce items mints them with a key the
+game controls. The game's client then enforces scarcity: the client can verify `mintedBy` and treat
+items that share a `unique` as one item.
+
 The wire defines a server-signed grant receipt (`grantReceiptSchema`). The server doesn't issue one
 yet, and a client must not depend on receiving one.
 
