@@ -230,6 +230,28 @@ describe("PolicyEngine — Jar lifecycle", () => {
     expect(retry.changes).toEqual([]); // not re-broadcast
   });
 
+  it("refuses an item the jar already holds, and takes it back once it has left", async () => {
+    await placeJar(engine, alice);
+    const r1 = item("r1");
+    await engine.applyOp(op(alice, "add", { item: item("r2") })); // keeps the jar open past the take
+    expect((await engine.applyOp(op(alice, "add", { item: r1 }))).result).toMatchObject({
+      ok: true,
+    });
+    // The same signed item under a fresh nonce: one item, one place (room-operation.md §7).
+    expect((await engine.applyOp(op(bob, "add", { item: r1 }))).result).toEqual({
+      ok: false,
+      error: "invalid",
+      message: "this room already holds that item",
+    });
+    expect((await engine.resolveRoom(JAR_ID))!.state["contents"]).toHaveLength(2);
+
+    // Once taken, the item lives in bob's inventory, so giving it back is a new custody transfer.
+    await engine.applyOp(op(bob, "take", { item: "r1" }));
+    expect((await engine.applyOp(op(bob, "add", { item: r1 }))).result).toMatchObject({
+      ok: true,
+    });
+  });
+
   it("take from an empty jar -> `empty`", async () => {
     await placeJar(engine, alice);
     expect((await engine.applyOp(op(bob, "take", { item: "x" }))).result).toEqual({

@@ -3,6 +3,7 @@ import type { OpaqueItem, OpEnvelope, OpResult, Policy } from "@beaconsgg/protoc
 import { beforeEach, describe, expect, it } from "vitest";
 import { PolicyEngine } from "../index";
 import {
+  grantedOf,
   InMemoryStore,
   nonce,
   reward,
@@ -130,6 +131,28 @@ describe("PolicyEngine — reward pool + grant-on-op + contributor cap (room-ope
     expect(
       (await engine.applyOp(op(alice, "contribute", { item: token("a2") }))).result,
     ).toMatchObject({ ok: true });
+  });
+
+  it("refuses a contribute of a pool item not granted yet, and takes one granted out", async () => {
+    const policy = timedPotPolicy({
+      lockDelaySec: 100,
+      unlockDelaySec: 200,
+      grant: { op: "contribute", from: "rewards", count: 1 },
+    });
+    const [granted, waiting] = [reward("rw-a"), reward("rw-b")];
+    await place(policy, [granted, waiting]);
+    expect((await engine.applyOp(op(bob, "contribute", { item: waiting }))).result).toMatchObject({
+      ok: false,
+      error: "invalid",
+    });
+
+    // Bob's first contribute draws rw-a. The item is his now, so he may put it in.
+    const first = await engine.applyOp(op(bob, "contribute", { item: token("b") }));
+    expect(grantedOf(first.result).map((i) => i.unique)).toEqual(["rw-a"]);
+    expect((await engine.applyOp(op(bob, "contribute", { item: granted }))).result).toMatchObject({
+      ok: true,
+      result: { contributed: "rw-a" },
+    });
   });
 
   it("claim still succeeds without a reward when the pool is exhausted (grant is a bonus, not a gate)", async () => {
