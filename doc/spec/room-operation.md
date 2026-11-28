@@ -107,7 +107,8 @@ with a rejection on failure:
    caller's game answers `gameNotAccepted`. The actor's role must allow the op (`denied`), and the
    clock's phase must allow it (`phase`).
 10. Run the op's handler. The handler checks structure and applies the intent. The handler's
-    refusals are `full`, `gone`, `empty` and `locked`.
+    refusals are `full`, `gone`, `empty` and `locked`. An item the room already holds answers
+    `invalid` (§7).
 11. Recompute the derived state from the whole contents (§8.3).
 12. Commit: bump the version and write the room and the nonce record in one atomic transaction, or
     delete a room that closes.
@@ -148,7 +149,8 @@ server and lost its reply is therefore recovered: the item is neither duplicated
 
 `baseVersion` lets an op say "apply only if the room is still at version 42", and a mismatch answers
 `stale`. Most ops don't need it. An item op names its item, so `take` answers `gone` when the item
-has left. A `contribute` always appends. A client may send `baseVersion` and isn't required to.
+has left. A `contribute` appends unless the room already holds the item (§7). A client may send
+`baseVersion` and isn't required to.
 
 ## 7. Atomic custody transfer
 
@@ -160,7 +162,10 @@ An item is authoritative in exactly one place, and a transfer happens inside one
 - **`claim`:** the server returns the actor's contributed items in the result and records the claim.
   The items stay in the frozen `contents` (§9.3).
 - **`add` and `contribute`:** the reverse. The client drops the item from its inventory after the
-  server confirms custody, and recovers through §6.2 on a failure.
+  server confirms custody, and recovers through §6.2 on a failure. The server answers `invalid` to an
+  item the room already holds in `contents` or in a pool that hasn't granted it yet. The same item
+  therefore can't count twice. A contributor who sends their own contribution again under a fresh
+  nonce gets a success that changes nothing, so the client still drops the item.
 - **Grants:** a grant rule hands the actor items from a pool in room state, as the same custody
   transfer (§9.6).
 

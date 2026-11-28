@@ -624,10 +624,11 @@ export class PolicyEngine {
     //    `derived` has none. Under radical trust the client sets `levels`, so a derived sum can
     //    overflow MAX_SAFE_INTEGER (evaluateFormula throws). Catch it as a clean `invalid`
     //    rejection rather than a 500 — and finalize() records it, so a retry can't re-throw past
-    //    the un-recorded nonce.
+    //    the un-recorded nonce. A handler `noop` skips it: the state it hands back is the stored
+    //    one, recomputed when it was written, so there is nothing new to derive or broadcast.
     let nextState = outcome.state;
     const changes = [...outcome.changes];
-    if (room.policy.derived && !LEDGER_ONLY_OPS.has(env.op)) {
+    if (room.policy.derived && outcome.noop !== true && !LEDGER_ONLY_OPS.has(env.op)) {
       try {
         nextState = recomputeDerived(room.policy, nextState);
       } catch {

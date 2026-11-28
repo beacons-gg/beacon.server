@@ -216,6 +216,29 @@ describe("PolicyEngine — Capsule lifecycle (contended recompute)", () => {
     expect(room.state["unlockAt"]).toBe(lockAt + 200 - (50 + 40));
   });
 
+  it("takes the same item once, so a sum counts it once", async () => {
+    await placeCapsule({ lockShift: { key: "procedural", per: -1 } });
+    const t0 = t();
+    const a = token("a", { procedural: 40 });
+    const first = await engine.applyOp(op(alice, "contribute", { item: a }));
+    expect(first.result).toMatchObject({ ok: true, version: 2, result: { contributed: "a" } });
+
+    // Alice's retry under a fresh nonce confirms the custody she has, without a second write.
+    const retry = await engine.applyOp(op(alice, "contribute", { item: a }));
+    expect(retry.result).toMatchObject({ ok: true, version: 2, result: { contributed: "a" } });
+    expect(retry.changes).toEqual([]);
+    // Anyone else sending the same item is refused.
+    expect((await engine.applyOp(op(bob, "contribute", { item: a }))).result).toMatchObject({
+      ok: false,
+      error: "invalid",
+    });
+
+    const room = (await engine.resolveRoom(CAP_ID))!;
+    expect(room.state["contents"]).toHaveLength(1);
+    expect(room.state["contributors"]).toEqual({ [alice.account.did]: ["a"] });
+    expect(room.state["lockAt"]).toBe(t0 + 100 - 40); // summed once
+  });
+
   it("gates contribute to the filling phase and claim to the open one (clock-driven)", async () => {
     await placeCapsule();
     await engine.applyOp(op(alice, "contribute", { item: token("a") }));

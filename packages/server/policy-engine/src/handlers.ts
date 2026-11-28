@@ -30,32 +30,44 @@ import {
  */
 
 /**
- * Validate an item crossing into a room's shared contents (`add` / `contribute`): it must parse as
- * an OpaqueItem AND carry **valid, verified provenance** (beacon.core `doc/spec/identity.md` §5.1
- * and §3 — the VERIFIED axis): a `mintedBy` signature over `{unique, ...birth}`. Both are required
- * so no malformed, unsigned, or forged item ever enters shared state (provenance powers
- * client-local trust/block lists, §9). The engine never interprets the item's game payload — it
- * verifies the signature and reads only `unique`/`owner`/`match`. Returns the parsed item, or the
- * error result to return as-is.
+ * Parse an item crossing into a room's shared contents (`add` / `contribute`) as an OpaqueItem.
+ * Only the schema: {@link checkIncomingItem} verifies it once the cheap checks have passed.
  */
 function parseIncomingItem(raw: unknown): { ok: true; item: OpaqueItem } | ErrorResult {
   const parsed = opaqueItemSchema.safeParse(raw);
   if (!parsed.success) {
     return paramsRefusal(parsed.error, ["item"], "params.item is not a valid item");
   }
-  if (
-    !verifyItemProvenance(
-      { unique: parsed.data.unique, birth: parsed.data.birth },
-      parsed.data.mintedBy,
-    )
-  ) {
+  return { ok: true, item: parsed.data };
+}
+
+/** The refusal for an item the room already holds ({@link findItem}). */
+const ALREADY_HELD: ErrorResult = {
+  ok: false,
+  error: "invalid",
+  message: "this room already holds that item",
+};
+
+/**
+ * The expensive checks on a parsed incoming item, run last: it must carry **valid, verified
+ * provenance** (beacon.core `doc/spec/identity.md` §5.1 and §3, the VERIFIED axis), a `mintedBy`
+ * signature over `{unique, ...birth}`, so no unsigned or forged item ever enters shared state
+ * (provenance powers client-local trust/block lists, §9). Then the room's `accept` predicate must
+ * take it. The engine never interprets the item's game payload: it verifies the signature and reads
+ * only `unique`/`owner`/`match`. Returns the refusal, or `undefined` when the item may enter.
+ */
+function checkIncomingItem(ctx: OpContext, item: OpaqueItem): ErrorResult | undefined {
+  if (!verifyItemProvenance({ unique: item.unique, birth: item.birth }, item.mintedBy)) {
     return {
       ok: false,
       error: "invalid",
       message: "item provenance (mintedBy) is missing or invalid",
     };
   }
-  return { ok: true, item: parsed.data };
+  if (ctx.room.policy.accept && !accepts(ctx.room.policy.accept, toCandidate(item))) {
+    return { ok: false, error: "denied", message: "rejected by accept predicate" };
+  }
+  return undefined;
 }
 
 export interface OpContext {
@@ -95,6 +107,29 @@ export function getContents(room: Room): OpaqueItem[] {
 }
 
 /**
+ * The room's entry for `unique`: any `contents` entry, claimed ones included, or a grant pool entry.
+ * An item is authoritative in exactly one place (`doc/spec/room-operation.md` §7), so `add` and
+ * `contribute` must not append an item the room holds and count it twice in every `sum`. For them a
+ * granted pool entry has left (its `owner` is the player who drew it), so they pass
+ * `granted: false`. A `react` target is real either way.
+ */
+function findItem(
+  room: Room,
+  unique: string,
+  { granted }: { granted: boolean },
+): OpaqueItem | undefined {
+  const inContents = getContents(room).find((item) => item.unique === unique);
+  if (inContents) return inContents;
+  for (const rule of grantRulesOf(room.policy)) {
+    const pooled = poolOf(room.state, rule.from).find(
+      (item) => item.unique === unique && (granted || item.owner == null),
+    );
+    if (pooled) return pooled;
+  }
+  return undefined;
+}
+
+/**
  * The accept candidate for an item — its generic `match` projection (`{class, levels, tags}`). The
  * accept gate is a structural/consistency gate, **not** anti-cheat: `match` is self-attested, so
  * under radical trust a dishonest client could spoof it either way (beacon.core
@@ -109,7 +144,7 @@ function toCandidate(item: OpaqueItem): AcceptCandidate {
 /** add(item): give an item away into custody; owner -> null (up for grabs). */
 export function handleAdd(ctx: OpContext): HandlerResult {
   // Capacity first — a full room rejects cheaply, before the Ed25519 provenance verify inside
-  // `parseIncomingItem` (so spamming a full room can't force signature checks). Precedence: full > invalid.
+  // `checkIncomingItem` (so spamming a full room can't force signature checks). Precedence: full > invalid.
   const contents = getContents(ctx.room);
   if (!withinCapacity(contents.length, ctx.room.policy.accept?.capacity)) {
     return { ok: false, error: "full" };
@@ -117,10 +152,9 @@ export function handleAdd(ctx: OpContext): HandlerResult {
   const incoming = parseIncomingItem(ctx.env.params["item"]);
   if (!incoming.ok) return incoming;
   const item = incoming.item;
-
-  if (ctx.room.policy.accept && !accepts(ctx.room.policy.accept, toCandidate(item))) {
-    return { ok: false, error: "denied", message: "rejected by accept predicate" };
-  }
+  if (findItem(ctx.room, item.unique, { granted: false })) return ALREADY_HELD;
+  const refusal = checkIncomingItem(ctx, item);
+  if (refusal) return refusal;
 
   const placed: OpaqueItem = { ...item, owner: null };
   return {
@@ -191,10 +225,22 @@ export function handleContribute(ctx: OpContext): HandlerResult {
   const incoming = parseIncomingItem(ctx.env.params["item"]);
   if (!incoming.ok) return incoming;
   const item = incoming.item;
-
-  if (ctx.room.policy.accept && !accepts(ctx.room.policy.accept, toCandidate(item))) {
-    return { ok: false, error: "denied", message: "rejected by accept predicate" };
+  const held = findItem(ctx.room, item.unique, { granted: false });
+  if (held) {
+    // The actor's own contribution, sent again under a fresh nonce (a retry after a lost reply):
+    // confirm the custody it already has, so the client drops the item, and change nothing.
+    const ownRetry = held.owner === ctx.actor && !getClaimed(ctx.room.state).includes(ctx.actor);
+    if (!ownRetry) return ALREADY_HELD;
+    return {
+      ok: true,
+      state: ctx.room.state,
+      result: { contributed: item.unique },
+      changes: [],
+      noop: true,
+    };
   }
+  const refusal = checkIncomingItem(ctx, item);
+  if (refusal) return refusal;
 
   const placed: OpaqueItem = { ...item, owner: ctx.actor };
   const contributors = getContributors(ctx.room.state);
@@ -253,14 +299,6 @@ export function handleClaim(ctx: OpContext): HandlerResult {
  */
 export function handleCollect(ctx: OpContext): HandlerResult {
   return { ok: true, state: ctx.room.state, result: {}, changes: [] };
-}
-
-/** True when `target` names an item this room holds — its shared contents, or any grant pool. */
-function holdsItem(room: Room, target: string): boolean {
-  if (getContents(room).some((item) => item.unique === target)) return true;
-  return grantRulesOf(room.policy).some((rule) =>
-    poolOf(room.state, rule.from).some((item) => item.unique === target),
-  );
 }
 
 /**
@@ -329,7 +367,10 @@ export function handleReact(ctx: OpContext): HandlerResult {
 
   // A DID target answers from the contributor ledger in one lookup; only an item target pays the
   // scan. `hasOwn`, not `in`: `target` is an untrusted string, and `"toString" in {}` is true.
-  if (!Object.hasOwn(getContributors(ctx.room.state), target) && !holdsItem(ctx.room, target)) {
+  if (
+    !Object.hasOwn(getContributors(ctx.room.state), target) &&
+    !findItem(ctx.room, target, { granted: true })
+  ) {
     return { ok: false, error: "gone" };
   }
 
